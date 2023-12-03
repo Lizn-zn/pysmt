@@ -346,7 +346,7 @@ class SmtLibParser(object):
                 new_args = []
                 for x in args:
                     if get_type(x).is_int_type() and\
-                       len(get_free_variables(x)) == 0:
+                       len(get_free_variables(x)) <= 100:
                         new_args.append(mgr.ToReal(x))
                     else:
                         new_args.append(x)
@@ -379,6 +379,7 @@ class SmtLibParser(object):
                             '-':self._operator_adapter(self._minus_or_uminus),
                             '*':self._operator_adapter(self.Times),
                             '/':self._operator_adapter(self._division),
+                            'div': self._operator_adapter(mgr.Div),
                             'pow':self._operator_adapter(mgr.Pow),
                             '>':self._operator_adapter(self.GT),
                             '<':self._operator_adapter(self.LT),
@@ -871,7 +872,7 @@ class SmtLibParser(object):
 
     def parse_model(self, script):
         """This function pasres the result of a `(get-model)` command and
-        returns a model as a dictionary from non-function symbols to
+        returns a model as a dictionary from non-fuction symbols to
         constant values and an interpretation for uninterpreted
         functions as a map from the function symbol to a
         FunctionInterpretation object.
