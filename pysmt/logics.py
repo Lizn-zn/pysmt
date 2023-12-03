@@ -59,6 +59,13 @@ class Theory(object):
         res.real_arithmetic = value
         return res
 
+    def set_nira(self):
+        res = self.copy()
+        res.integer_arithmetic = True
+        res.real_arithmetic = True
+        res.linear = False
+        return res
+    
     def set_linear(self, value=True):
         res = self.copy()
         res.linear = value
@@ -655,6 +662,7 @@ SMTLIB2_LOGICS = frozenset([AUFLIA,
                             QF_LRA,
                             QF_NIA,
                             QF_NRA,
+                            QF_NIRA,
                             QF_RDL,
                             QF_UF,
                             QF_UFBV,

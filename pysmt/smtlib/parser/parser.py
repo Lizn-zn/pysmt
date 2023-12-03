@@ -379,7 +379,6 @@ class SmtLibParser(object):
                             '-':self._operator_adapter(self._minus_or_uminus),
                             '*':self._operator_adapter(self.Times),
                             '/':self._operator_adapter(self._division),
-                            'div': self._operator_adapter(mgr.Div),
                             'pow':self._operator_adapter(mgr.Pow),
                             '>':self._operator_adapter(self.GT),
                             '<':self._operator_adapter(self.LT),
@@ -392,6 +391,12 @@ class SmtLibParser(object):
                             'xor':self._operator_adapter(mgr.Xor),
                             '=>':self._operator_adapter(mgr.Implies),
                             '<->':self._operator_adapter(mgr.Iff),
+                            # add by zenan
+                            'div': self._operator_adapter(mgr.Div),
+                            'round': self._operator_adapter(mgr.RealToInt),
+                            'to_int':self._operator_adapter(mgr.RealToInt),
+                            'expt': self._operator_adapter(mgr.Pow),
+                            ####
                             'ite':self._operator_adapter(self.Ite),
                             'distinct':self._operator_adapter(self.AllDifferent),
                             'to_real':self._operator_adapter(mgr.ToReal),
@@ -499,8 +504,11 @@ class SmtLibParser(object):
                 mult = mgr.Real(-1)
             return mgr.Times(mult, args[0])
         else:
-            assert len(args) == 2
-            return self.Minus(args[0], args[1])
+            # assert len(args) == 2
+            res = self.Minus(args[0], args[1])
+            for i in range(1, len(args)-1):
+                res = self.Minus(res, args[i+1])
+            return res
 
     def _enter_smtlib_as(self, stack, tokens, key):
         """Utility function that handles 'as' that is a special function in SMTLIB"""
