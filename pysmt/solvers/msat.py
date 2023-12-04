@@ -401,6 +401,8 @@ class MSatConverter(Converter, DagWalker):
             mathsat.MSAT_TAG_LEQ: self._back_adapter(self.mgr.LE),
             mathsat.MSAT_TAG_PLUS: self._back_adapter(self.mgr.Plus),
             mathsat.MSAT_TAG_TIMES: self._back_adapter(self.mgr.Times),
+            mathsat.MSAT_TAG_POW: self._back_adapter(self.mgr.Pow),
+            mathsat.MSAT_TAG_LOG: self._back_adapter(self.mgr.Logarithm),
             mathsat.MSAT_TAG_BV_MUL: self._back_adapter(self.mgr.BVMul),
             mathsat.MSAT_TAG_BV_ADD: self._back_adapter(self.mgr.BVAdd),
             mathsat.MSAT_TAG_BV_UDIV: self._back_adapter(self.mgr.BVUDiv),
@@ -760,7 +762,6 @@ class MSatConverter(Converter, DagWalker):
         """
         # Rewrite to avoid UF with bool args
         rformula = self._ufrewriter.walk(formula)
-        print(rformula)
         res = self.walk(rformula)
         if mathsat.MSAT_ERROR_TERM(res):
             msat_msg = mathsat.msat_last_error_message(self.msat_env())
@@ -984,6 +985,14 @@ class MSatConverter(Converter, DagWalker):
             else:
                 res = mathsat.msat_make_times(self.msat_env(), res, x)
         return res
+
+    def walk_pow(self, formula, args, **kwargs):
+        return mathsat.msat_make_pow(self.msat_env(),
+                                    args[0], args[1])
+        
+    def walk_log(self, formula, args, **kwargs):
+        print(formula, args[0])
+        return mathsat.msat_make_log(self.msat_env(), args[0])
 
     def walk_function(self, formula, args, **kwargs):
         name = formula.function_name()
