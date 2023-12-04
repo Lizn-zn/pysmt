@@ -760,6 +760,7 @@ class MSatConverter(Converter, DagWalker):
         """
         # Rewrite to avoid UF with bool args
         rformula = self._ufrewriter.walk(formula)
+        print(rformula)
         res = self.walk(rformula)
         if mathsat.MSAT_ERROR_TERM(res):
             msat_msg = mathsat.msat_last_error_message(self.msat_env())

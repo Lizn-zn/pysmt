@@ -178,6 +178,11 @@ class HRPrinter(TreeWalker):
         yield formula.arg(0)
         self.write(")")
         
+    def walk_log(self, formula):
+        self.write("log(")
+        yield formula.arg(0)
+        self.write(")")
+        
     def walk_str_constant(self, formula):
         assert (type(formula.constant_value()) == str ), \
             "The type was " + str(type(formula.constant_value()))

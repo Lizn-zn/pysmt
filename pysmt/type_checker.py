@@ -86,6 +86,8 @@ class SimpleTypeChecker(walkers.DagWalker):
         arg = args[0]
         if arg.is_real_type():
             return INT
+        elif arg.is_int_type():
+            return INT
         else:
             return None
 
@@ -332,7 +334,14 @@ class SimpleTypeChecker(walkers.DagWalker):
         return ArrayType(idx_type, default_type)
 
     def walk_pow(self, formula, args, **kwargs):
-        if args[0] != args[1]:
+        # zenan: remove here
+        # if args[0] != args[1]:
+            # return None
+        return REAL
+    
+    def walk_log(self, formula, args, **kwargs):
+        # zenan: remove here
+        if len(args) != 1:
             return None
         return REAL
 

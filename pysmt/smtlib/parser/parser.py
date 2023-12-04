@@ -34,6 +34,7 @@ from pysmt.typing import _TypeDecl, PartialType
 from pysmt.substituter import FunctionInterpretation
 
 
+
 def open_(fname):
     """Transparently handle .bz2 files."""
     if fname.endswith(".bz2"):
@@ -396,6 +397,9 @@ class SmtLibParser(object):
                             'round': self._operator_adapter(mgr.RealToInt),
                             'to_int':self._operator_adapter(mgr.RealToInt),
                             'expt': self._operator_adapter(mgr.Pow),
+                            'ceil': self._operator_adapter(mgr.Ceiling),
+                            'log': self._operator_adapter(mgr.Logarithm),
+                            # 'ln': self._operator_adapter(mgr.Logarithm_e),
                             ####
                             'ite':self._operator_adapter(self.Ite),
                             'distinct':self._operator_adapter(self.AllDifferent),

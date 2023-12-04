@@ -248,10 +248,10 @@ class FormulaManager(object):
 
         The exponent must be a constant.
         """
-        if not exponent.is_constant():
-            raise PysmtValueError("The exponent of POW must be a constant.", exponent)
-
-        if base.is_constant():
+        # if not exponent.is_constant():
+            # raise PysmtValueError("The exponent of POW must be a constant.", exponent)
+        # if base.is_constant():
+        if base.is_constant() and exponent.is_constant():
             val = base.constant_value() ** exponent.constant_value()
             return self.Real(val)
         return self.create_node(node_type=op.POW, args=(base, exponent))
@@ -497,6 +497,11 @@ class FormulaManager(object):
         """ Truncate a real formula to int. """
         cond = self.GE(formula, self.Real(0))
         return self.Ite(cond, self.RealToInt(formula), self.Ceiling(formula))
+    
+    def Logarithm(self, formula, *args):
+        """ Returns the natural logarithm of the formula. """
+        return self.create_node(node_type=op.LOG,
+                                    args=(formula,))
 
     def AtMostOne(self, *args):
         """ At most one of the bool expressions can be true at anytime.
