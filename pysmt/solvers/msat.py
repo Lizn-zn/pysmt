@@ -133,7 +133,7 @@ class MathSAT5Model(Model):
         """Returns whether the model contains a value for 'x'."""
         return x in (v for v, _ in self)
 
-# EOC self._msat_lib5Model
+# EOC MathSAT5Model
 
 
 class MathSATOptions(SolverOptions):
@@ -368,7 +368,7 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
         return val
 
     def get_model(self):
-        return self._msat_lib5Model(self.environment, self.msat_env)
+        return MathSAT5Model(self.environment, self.msat_env)
 
     def _exit(self):
         del self.msat_env
