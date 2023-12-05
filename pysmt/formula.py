@@ -93,8 +93,8 @@ class FormulaManager(object):
         else:
             n = FNode(content, self._next_free_id)
             self._next_free_id += 1
-            self.formulae[content] = n
             self._do_type_check(n)
+            self.formulae[content] = n # change the order between 96-97 to avoid duplicate "1 + 5/2"
             return n
 
     def _create_symbol(self, name, typename=types.BOOL):
@@ -240,6 +240,9 @@ class FormulaManager(object):
         if len(tuple_args) == 1:
             return tuple_args[0]
         else:
+            # for (i, element) in enumerate(tuple_args):
+                # if element.is_constant(types.INT):
+                    # tuple_args[i] = self.Real(element)
             return self.create_node(node_type=op.TIMES,
                                     args=tuple_args)
 
@@ -486,22 +489,34 @@ class FormulaManager(object):
         return self.create_node(node_type=op.REALTOINT,
                                 args=(formula,))
 
-    def Ceiling(self, formula):
+    def Ceil(self, formula):
         """ Cast a real formula to the int
             that is at least as large as the real. """
         int_val = self.RealToInt(formula)
         cond = self.Equals(self.ToReal(int_val), formula)
         return self.Ite(cond, int_val, self.Plus(int_val, self.Int(1)))
 
-    def Truncate(self, formula):
+    def Floor(self, formula):
         """ Truncate a real formula to int. """
         cond = self.GE(formula, self.Real(0))
-        return self.Ite(cond, self.RealToInt(formula), self.Ceiling(formula))
+        return self.Ite(cond, self.RealToInt(formula), self.Ceil(formula))
+
+    def Abs(self, formula):
+        """ Absolute value of a formula. """
+        cond = self.GE(formula, self.Real(0))
+        return self.Ite(cond, formula, self.Times(self.Real(-1), formula))
     
-    def Logarithm(self, formula, *args):
+    def Logarithm(self, formula):
         """ Returns the natural logarithm of the formula. """
         return self.create_node(node_type=op.LOG,
                                     args=(formula,))
+    
+    def Log_base(self, formula, base=2):
+        return self.Div(self.Logarithm(formula), self.Logarithm(self.Real(base)))
+    
+    def Sqrt(self, formula):
+        """ Returns the square root of the formula. """
+        return self.Pow(formula, self.Real(0.5))
 
     def AtMostOne(self, *args):
         """ At most one of the bool expressions can be true at anytime.
@@ -572,6 +587,11 @@ class FormulaManager(object):
         else:
             h = len(exprs) // 2
             return self.Max(self.Max(exprs[0:h]), self.Max(exprs[h:]))
+        
+    def Modulo(self, left, right):
+        """Returns the encoding of the modulo expression left % right"""
+        return self.create_node(node_type=op.MOD,
+                                args=(left, right))
 
     def EqualsOrIff(self, left, right):
         """Returns Equals() or Iff() depending on the type of the arguments.

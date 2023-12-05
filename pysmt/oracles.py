@@ -279,6 +279,9 @@ class TheoryOracle(walkers.DagWalker):
     def walk_pow(self, formula, args, **kwargs):
         return args[0].set_linear(False)
     
+    def walk_mod(self, formula, args, **kwargs):
+        return args[0].set_linear(False)
+    
     def walk_log(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         """Extends the Theory with NIRA."""

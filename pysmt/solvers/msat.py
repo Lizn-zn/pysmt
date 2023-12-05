@@ -991,7 +991,6 @@ class MSatConverter(Converter, DagWalker):
                                     args[0], args[1])
         
     def walk_log(self, formula, args, **kwargs):
-        print(formula, args[0])
         return mathsat.msat_make_log(self.msat_env(), args[0])
 
     def walk_function(self, formula, args, **kwargs):

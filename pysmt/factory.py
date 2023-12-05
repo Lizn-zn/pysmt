@@ -94,7 +94,7 @@ class Factory(object):
                                   default_logic=self.default_logic,
                                   name=name,
                                   logic=logic)
-
+           
         return SolverClass(environment=self.environment,
                            logic=closer_logic,
                            **options)

@@ -183,6 +183,7 @@ class HRPrinter(TreeWalker):
         yield formula.arg(0)
         self.write(")")
         
+        
     def walk_str_constant(self, formula):
         assert (type(formula.constant_value()) == str ), \
             "The type was " + str(type(formula.constant_value()))
@@ -306,6 +307,7 @@ class HRPrinter(TreeWalker):
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")
     def walk_pow(self, formula): return self.walk_nary(formula, " ^ ")
+    def walk_mod(self, formula): return self.walk_nary(formula, " % ")
     def walk_iff(self, formula): return self.walk_nary(formula, " <-> ")
     def walk_implies(self, formula): return self.walk_nary(formula, " -> ")
     def walk_minus(self, formula): return self.walk_nary(formula, " - ")

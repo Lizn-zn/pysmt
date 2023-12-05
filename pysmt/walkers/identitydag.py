@@ -97,6 +97,9 @@ class IdentityDagWalker(DagWalker):
     def walk_pow(self, formula, args, **kwargs):
         return self.mgr.Pow(args[0], args[1])
     
+    def walk_mod(self, formula, args, **kwargs):
+        return self.mgr.Mod(args[0], args[1])
+    
     def walk_log(self, formula, args, **kwargs):
         return self.mgr.Logarithm(args[0])
 

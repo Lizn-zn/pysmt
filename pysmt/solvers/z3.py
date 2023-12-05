@@ -886,6 +886,7 @@ class Z3Converter(Converter, DagWalker):
     walk_equals  = make_walk_binary(z3.Z3_mk_eq)
     walk_iff     = make_walk_binary(z3.Z3_mk_eq)
     walk_pow     = make_walk_binary(z3.Z3_mk_power)
+    walk_mod     = make_walk_binary(z3.Z3_mk_mod)
     walk_div     = make_walk_binary(z3.Z3_mk_div)
     walk_bv_ult  = make_walk_binary(z3.Z3_mk_bvult)
     walk_bv_ule  = make_walk_binary(z3.Z3_mk_bvule)

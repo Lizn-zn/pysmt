@@ -333,17 +333,26 @@ class SimpleTypeChecker(walkers.DagWalker):
                 return None
         return ArrayType(idx_type, default_type)
 
+    @walkers.handles(op.POW)
     def walk_pow(self, formula, args, **kwargs):
         # zenan: remove here
         # if args[0] != args[1]:
             # return None
         return REAL
     
+    @walkers.handles(op.LOG)
     def walk_log(self, formula, args, **kwargs):
         # zenan: remove here
         if len(args) != 1:
             return None
         return REAL
+    
+    @walkers.handles(op.MOD)
+    def walk_mod(self, formula, args, **kwargs):
+        if args[0].is_int_type() and \
+                    args[1].is_int_type():
+            return INT
+        return None
 
 # EOC SimpleTypeChecker
 
