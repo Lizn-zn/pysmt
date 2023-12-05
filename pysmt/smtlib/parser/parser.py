@@ -193,7 +193,7 @@ class Tokenizer(object):
                 t = self.consume_maybe()
             except StopIteration:
                 if msg:
-                    raise PysmtSyntaxError (msg, self.pos_info)
+                    raise PysmtSyntaxError(msg, self.pos_info)
                 else:
                     raise PysmtSyntaxError("Unexpected end of stream.",
                                            self.pos_info)
@@ -331,6 +331,7 @@ class SmtLibParser(object):
         self._reset()
 
         mgr = self.env.formula_manager
+        self.get_type = self.env.stc.get_type
 
         # Fixing the issue with integer/real numbers on arithmetic
         # operators.
@@ -342,11 +343,10 @@ class SmtLibParser(object):
             try:
                 return op(*args)
             except PysmtTypeError:
-                get_type = self.env.stc.get_type
                 get_free_variables = self.env.fvo.get_free_variables
                 new_args = []
                 for x in args:
-                    if get_type(x).is_int_type() and\
+                    if self.get_type(x).is_int_type() and\
                        len(get_free_variables(x)) <= 100:
                         new_args.append(mgr.ToReal(x))
                     else:
@@ -493,6 +493,15 @@ class SmtLibParser(object):
                          smtcmd.SET_LOGIC : self._cmd_set_logic,
                          smtcmd.SET_OPTION : self._cmd_set_option,
                          smtcmd.SET_INFO : self._cmd_set_info,
+                         # OMT Extension (http://optimathsat.disi.unitn.it/pages/smt2reference.html)
+                         smtcmd.ASSERT_SOFT: self._cmd_assert_soft,
+                         smtcmd.CHECK_ALLSAT: self._cmd_check_allsat,
+                         smtcmd.GET_OBJECTIVES: self._cmd_get_objectives,
+                         smtcmd.MAXIMIZE: self._cmd_objective,
+                         smtcmd.MINIMIZE: self._cmd_objective,
+                         smtcmd.MINMAX: self._cmd_minmax_maxmin_obj,
+                         smtcmd.MAXMIN: self._cmd_minmax_maxmin_obj,
+                         smtcmd.LOAD_OBJECTIVE_MODEL: self._cmd_load_objective_model,
                      }
 
     def _reset(self):
@@ -506,7 +515,7 @@ class SmtLibParser(object):
         """Utility function that handles both unary and binary minus"""
         mgr = self.env.formula_manager
         if len(args) == 1:
-            lty = self.env.stc.get_type(args[0])
+            lty = self.get_type(args[0])
             mult = None
             if lty == self.env.type_manager.INT():
                 if args[0].is_int_constant():
@@ -614,6 +623,26 @@ class SmtLibParser(object):
                                        "'%s'" % op, tokens.pos_info)
             fun = mgr.BV(v, width)
 
+        elif op == "to_bv":
+            # this is necessary to the current syntax of _ to_bv, which open an empty stack
+            stack.pop()
+            try:
+                width = int(self.parse_atom(tokens, "expression"))
+            except ValueError:
+                raise PysmtSyntaxError("Expected number in '_ to_bv' expression: "
+                                       "'%s'" % op, tokens.pos_info)
+            self.consume_closing(tokens, "expression")
+            fnv = self.get_expression(tokens)
+            if fnv.is_int_constant():
+                v = fnv.constant_value()
+            else:
+                raise PysmtSyntaxError("Expected number in '_ to_bv' expression: "
+                                       "'%s'" % op, tokens.pos_info)
+            if v >= 0:
+                fun = mgr.BV(v, width)
+            else:
+                fun = mgr.SBV(v, width)
+
         else:
             raise PysmtSyntaxError("Unexpected '_' expression '%s'" % op,
                                    tokens.pos_info)
@@ -623,7 +652,7 @@ class SmtLibParser(object):
     def _equals_or_iff(self, left, right):
         """Utility function that treats = between booleans as <->"""
         mgr = self.env.formula_manager
-        lty = self.env.stc.get_type(left)
+        lty = self.get_type(left)
         if lty == self.env.type_manager.BOOL():
             return mgr.Iff(left, right)
         else:
@@ -1212,10 +1241,85 @@ class SmtLibParser(object):
         self.consume_closing(tokens, current)
         return SmtLibCommand(current, [expr])
 
+    def _cmd_assert_soft(self, current, tokens):
+        """(assert-soft <term> [:id <string>] [:weight <const_term>])"""
+        expr = self.get_expression(tokens)
+        term_weight = None
+        term_group_id = None
+        curr = tokens.consume()
+        while curr != ")":
+            tokens.add_extra_token(curr)
+            curr_parse = self.parse_atom(tokens, current)
+            if curr_parse == ":weight" and term_weight is None:
+                term_weight = self.get_expression(tokens)
+            elif curr_parse == ":id" and term_group_id is None:
+                term_group_id = self.parse_atom(tokens, "assert-soft")
+            else:
+                raise PysmtSyntaxError("Incorrect option in the 'assert-soft' command", tokens.pos_info)
+            curr = tokens.consume()
+
+        # Defaults
+        if term_weight is None:
+            term_weight = self.env.formula_manager.Int(1)
+        if term_group_id is None:
+            term_group_id = "I"  # default identifier for soft-clause
+        params = [
+            (":weight", term_weight),
+            (":id", term_group_id),
+        ]
+        return SmtLibCommand(current, [expr, params])
+
+    def _cmd_check_allsat(self, current, tokens):
+        """(check-allsat <terms>)"""
+        params = self.parse_expr_list(tokens, current)
+        self.consume_closing(tokens, current)
+        return SmtLibCommand(current, params)
+
     def _cmd_check_sat(self, current, tokens):
         """(check-sat)"""
         self.parse_atoms(tokens, current, 0)
         return SmtLibCommand(current, [])
+
+    def _cmd_get_objectives(self, current, tokens):
+        """(get-objective)"""
+        self.parse_atoms(tokens, current, 0)
+        return SmtLibCommand(current, [])
+
+    def _cmd_minmax_maxmin_obj(self, current, tokens):
+        """(minmax | maxmin <term>+ )"""
+        """TODO: [:id <string>] [:signed]"""
+        params = []
+        while True:
+            try:
+                c = self.get_expression(tokens)
+                params.append(c)
+            except PysmtSyntaxError:
+                break
+        return SmtLibCommand(current, [params,None])
+
+    def _cmd_objective(self, current, tokens):
+        """(maximize | minimize <term>"""
+        obj = self.get_expression(tokens)
+        params = []
+        curr = tokens.consume()
+        signed = False
+        while curr != ")":
+            tokens.add_extra_token(curr)
+            curr_parse = self.parse_atom(tokens, current)
+            if curr_parse == ":id":
+                id = self.parse_atom(tokens, "maximization/minimization")
+                params.append((curr_parse, id))
+            elif curr_parse == ":signed":
+                signed = True
+                params.append((curr_parse, signed))
+            else:
+                raise PysmtSyntaxError("Incorrect option in the 'maximize/minimize' command", tokens.pos_info)
+            curr = tokens.consume()
+        tokens.add_extra_token(")")
+        self.consume_closing(tokens, current)
+        if not signed:
+            params.append((":signed", signed))
+        return SmtLibCommand(current, [obj, params])
 
     def _cmd_push(self, current, tokens):
         """(push <numeral>)"""
@@ -1400,6 +1504,14 @@ class SmtLibParser(object):
         """(echo <string>)"""
         elements = self.parse_atoms(tokens, current, 1)
         return SmtLibCommand(current, elements)
+
+    def _cmd_load_objective_model(self, current, tokens):
+        """(load-objective-model <numeral>)"""
+        elements = self.parse_atoms(tokens, current, 0, 1)
+        levels = 1
+        if len(elements) > 0:
+            levels = int(elements[0])
+        return SmtLibCommand(current, [levels])
 
     def _cmd_get_assignment(self, current, tokens):
         """(get-assignment)"""
