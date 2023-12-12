@@ -177,6 +177,7 @@ class SmtLibCommand(namedtuple('SmtLibCommand', ['name', 'args'])):
         return buf.getvalue()
 
 
+
 class SmtLibScript(object):
 
     def __init__(self):
@@ -197,6 +198,7 @@ class SmtLibScript(object):
         for cmd in self.commands:
             r = inter.evaluate(cmd, solver)
             log.append((cmd.name, r))
+
         return log
 
     def contains_command(self, command_name):
@@ -434,7 +436,8 @@ class InterpreterOMT(InterpreterSMT):
             rt = MinimizationGoal(cmd.args[0])
             self.optimization_goals[0].append(rt)
             return rt
-        elif cmd.name == smtcmd.CHECK_SAT:
+        # zenan: add self.optimization_goals[0] to check if there is optimization goal
+        elif cmd.name == smtcmd.CHECK_SAT and self.optimization_goals[0]: 
             self.optimization_goals[1].clear()
             rt = False
             if self.opt_priority == "single-obj":

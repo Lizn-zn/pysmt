@@ -22,7 +22,7 @@ from pysmt.solvers.z3 import Z3Solver, Z3Model
 
 from pysmt.exceptions import PysmtInfinityError, \
     PysmtUnboundedOptimizationError, PysmtInfinitesimalError, \
-    SolverAPINotFound, GoalNotSupportedError
+    SolverAPINotFound, GoalNotSupportedError, GoalUnavaibleError
 
 from pysmt.optimization.optimizer import Optimizer, \
     SUAOptimizerMixin, IncrementalOptimizerMixin
@@ -81,7 +81,8 @@ class Z3NativeOptimizer(Optimizer, Z3Solver):
             except PysmtInfinitesimalError:
                 raise PysmtUnboundedOptimizationError("The optimal value is infinitesimal")
         else:
-            return None
+            # return None
+            raise GoalUnavaibleError("z3", goal.term())
 
     def pareto_optimize(self, goals):
         self.z3.set(priority='pareto')

@@ -410,6 +410,7 @@ class MSatConverter(Converter, DagWalker):
             self._msat_lib.MSAT_TAG_LEQ: self._back_adapter(self.mgr.LE),
             self._msat_lib.MSAT_TAG_PLUS: self._back_adapter(self.mgr.Plus),
             self._msat_lib.MSAT_TAG_TIMES: self._back_adapter(self.mgr.Times),
+            self._msat_lib.MSAT_TAG_POW: self._back_adapter(self.mgr.Div),
             self._msat_lib.MSAT_TAG_POW: self._back_adapter(self.mgr.Pow),
             self._msat_lib.MSAT_TAG_LOG: self._back_adapter(self.mgr.Logarithm),
             self._msat_lib.MSAT_TAG_BV_MUL: self._back_adapter(self.mgr.BVMul),
@@ -985,14 +986,22 @@ class MSatConverter(Converter, DagWalker):
 
     def walk_times(self, formula, args, **kwargs):
         res = args[0]
-        nl_count = 0 if self._msat_lib.msat_term_is_number(self.msat_env(), res) else 1
+        # remove this assertion due to outdated
+        # nl_count = 0 if self._msat_lib.msat_term_is_number(self.msat_env(), res) else 1
         for x in args[1:]:
-            if not self._msat_lib.msat_term_is_number(self.msat_env(), x):
-                nl_count += 1
-            if nl_count >= 2:
-                raise NonLinearError(formula)
-            else:
-                res = self._msat_lib.msat_make_times(self.msat_env(), res, x)
+            # if not self._msat_lib.msat_term_is_number(self.msat_env(), x):
+                # nl_count += 1
+            # if nl_count >= 2:
+                # raise NonLinearError(formula)
+            # else:
+                # res = self._msat_lib.msat_make_times(self.msat_env(), res, x)
+            res = self._msat_lib.msat_make_times(self.msat_env(), res, x)
+        return res
+    
+    def walk_div(self, formula, args, **kwargs):
+        res = args[0]
+        for x in args[1:]:
+            res = self._msat_lib.msat_make_divide(self.msat_env(), res, x)
         return res
 
     def walk_pow(self, formula, args, **kwargs):

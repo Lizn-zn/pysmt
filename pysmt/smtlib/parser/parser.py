@@ -393,7 +393,8 @@ class SmtLibParser(object):
                             '=>':self._operator_adapter(mgr.Implies),
                             '<->':self._operator_adapter(mgr.Iff),
                             # add by zenan
-                            'div': self._operator_adapter(self.Div),
+                            '^':self._operator_adapter(mgr.Pow),
+                            'div': self._operator_adapter(self._division),
                             'round': self._operator_adapter(mgr.RealToInt),
                             'to_int':self._operator_adapter(mgr.RealToInt),
                             'abs': self._operator_adapter(mgr.Abs),
@@ -658,13 +659,26 @@ class SmtLibParser(object):
         else:
             return self.Equals(left, right)
 
-    def _division(self, left, right):
+
+    def _division(self, *args):
         """Utility function that builds a division"""
         mgr = self.env.formula_manager
-        if left.is_constant() and right.is_constant():
-            return mgr.Real(Fraction(left.constant_value()) /
-                            Fraction(right.constant_value()))
-        return self.Div(left, right)
+        # if len(args) < 2:
+            # raise PysmtSyntaxError("Division is supported for more than two terms: %s" %args)
+        if len(args) == 1: # This is what z3 does
+            return args[0]
+        elif len(args) == 2:
+            left, right = args
+            if left.is_constant() and right.is_constant():
+                return mgr.Real(Fraction(left.constant_value()) /
+                                Fraction(right.constant_value()))
+            else:
+                return self.Div(left, right)
+        else:
+            res = self.Div(args[0], args[1])
+            for i in range(1, len(args)-1):
+                res = self.Div(res, args[i+1])
+            return res
 
     def _get_var(self, name, type_name):
         """Returns the PySMT variable corresponding to a declaration"""
