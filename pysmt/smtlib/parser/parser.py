@@ -394,7 +394,7 @@ class SmtLibParser(object):
                             '<->':self._operator_adapter(mgr.Iff),
                             # add by zenan
                             '^':self._operator_adapter(mgr.Pow),
-                            'div': self._operator_adapter(self._division),
+                            'div': self._operator_adapter(self.Div),
                             'round': self._operator_adapter(mgr.RealToInt),
                             'to_int':self._operator_adapter(mgr.RealToInt),
                             'abs': self._operator_adapter(mgr.Abs),
