@@ -22,7 +22,7 @@ from warnings import warn
 from collections import deque
 
 import pysmt.smtlib.commands as smtcmd
-from pysmt.environment import get_env
+from pysmt.environment import get_env, reset_env
 from pysmt.logics import get_logic_by_name, UndefinedLogicError
 from pysmt.exceptions import UnknownSmtLibCommandError, PysmtSyntaxError
 from pysmt.exceptions import PysmtTypeError
@@ -323,6 +323,7 @@ class SmtLibParser(object):
 
     def __init__(self, environment=None, interactive=False):
         self.env = get_env() if environment is None else environment
+        self.env = reset_env() # see https://github.com/pysmt/pysmt/issues/586
         self.interactive = interactive
 
         # Placeholders for fields filled by self._reset
@@ -393,9 +394,9 @@ class SmtLibParser(object):
                             '=>':self._operator_adapter(mgr.Implies),
                             '<->':self._operator_adapter(mgr.Iff),
                             # add by zenan
-                            '^':self._operator_adapter(mgr.Pow),
-                            'div': self._operator_adapter(self.Div),
-                            'round': self._operator_adapter(mgr.RealToInt),
+                            '^': self._operator_adapter(mgr.Pow),
+                            'div': self._operator_adapter(self._intdivision),
+                            'round': self._operator_adapter(mgr.Round),
                             'to_int':self._operator_adapter(mgr.RealToInt),
                             'abs': self._operator_adapter(mgr.Abs),
                             'expt': self._operator_adapter(mgr.Pow),
@@ -409,8 +410,12 @@ class SmtLibParser(object):
                             'min': self._operator_adapter(mgr.Min),
                             'mod': self._operator_adapter(mgr.Modulo),
                             'sqrt': self._operator_adapter(mgr.Sqrt),
+                            'square': self._operator_adapter(lambda formula:mgr.Pow(formula, exponent=mgr.Real(2))),
                             'if': self._operator_adapter(self.Ite), 
+                            'Ite': self._operator_adapter(self.Ite), 
                             'dec': self._operator_adapter(lambda formula:self._minus_or_uminus(formula, mgr.Real(1))),
+                            'gcd': self._operator_adapter(mgr.GCD),
+                            'lcm': self._operator_adapter(mgr.LCM),
                             ####
                             'ite':self._operator_adapter(self.Ite),
                             'distinct':self._operator_adapter(self.AllDifferent),
@@ -464,7 +469,10 @@ class SmtLibParser(object):
                             'store':self._operator_adapter(mgr.Store),
                             'as':self._enter_smtlib_as,
                             }
-
+        # pre-defined constant
+        self.constants = {'pi': mgr.PI(), 
+                        #   'e': mgr.Real(2.71828), 
+                         }
         # Command tokens
         self.commands = {smtcmd.ASSERT : self._cmd_assert,
                          smtcmd.CHECK_SAT : self._cmd_check_sat,
@@ -680,6 +688,26 @@ class SmtLibParser(object):
                 res = self.Div(res, args[i+1])
             return res
 
+    def _intdivision(self, *args):
+        """Utility function that builds a division"""
+        mgr = self.env.formula_manager
+        # if len(args) < 2:
+            # raise PysmtSyntaxError("Division is supported for more than two terms: %s" %args)
+        if len(args) == 1: # This is what z3 does
+            return args[0]
+        elif len(args) == 2:
+            left, right = args
+            if left.is_constant() and right.is_constant():
+                return mgr.RealToInt(Fraction(left.constant_value()) /
+                                Fraction(right.constant_value()))
+            else:
+                return mgr.IntDiv(left, right)
+        else:
+            res = mgr.IntDiv(args[0], args[1])
+            for i in range(1, len(args)-1):
+                res = mgr.IntDiv(res, args[i+1])
+            return res
+
     def _get_var(self, name, type_name):
         """Returns the PySMT variable corresponding to a declaration"""
         return self.env.formula_manager.Symbol(name=name,
@@ -869,12 +897,11 @@ class SmtLibParser(object):
         try:
             while True:
                 tk = tokens.consume_maybe()
-
+                
                 if tk == "(":
                     while tk == "(":
                         stack.append([])
                         tk = tokens.consume()
-
                     if tk in self.interpreted:
                         fun = self.interpreted[tk]
                         fun(stack, tokens, tk)
@@ -903,7 +930,12 @@ class SmtLibParser(object):
 
                 else:
                     try:
-                        stack[-1].append(self.atom(tk, mgr))
+                        # to check whether it is a special constant
+                        if tk in self.constants:
+                            res = self.constants[tk]
+                            stack[-1].append(res)
+                        else:
+                            stack[-1].append(self.atom(tk, mgr))
                     except IndexError:
                         return self.atom(tk, mgr)
         except StopIteration:
@@ -1508,7 +1540,52 @@ class SmtLibParser(object):
 
     def _cmd_define_fun_rec(self, current, tokens):
         """(define-fun-rec <fun_def>)"""
-        return self._cmd_not_implemented(current, tokens)
+        formal = []
+        var = self.parse_atom(tokens, current)
+        namedparams = self.parse_named_params(tokens, current)
+        rtype = self.parse_type(tokens, current)
+        bindings = []
+
+        params = []
+        for (x, t) in namedparams:
+            params.append(t)
+
+        if params:
+            typename = self.env.type_manager.FunctionType(rtype, params)
+        else:
+            typename = rtype
+        v = self._get_var(var, typename)
+        if v.symbol_type().is_function_type():
+            self.cache.bind(var,
+                    functools.partial(self._function_call_helper, v))
+        else:
+            self.cache.bind(var, v)
+        
+        # Create formal parameters and local bindings
+        for (x, t) in namedparams:
+            v = self.env.formula_manager.FreshSymbol(typename=t, template="__" + x + "%d")
+            self.cache.bind(x, v)
+            formal.append(v)  # remember the variable
+            bindings.append(x)  # remember the name
+
+        # Parse the body of the function using the parameters
+        ebody = self.get_expression(tokens)
+        ebody_type = self.env.stc.get_type(ebody)
+
+        # Check that ebody has the right type
+        if ebody_type != rtype:
+            raise PysmtSyntaxError("Typing error in define-fun-rec command. "
+                                "The expected type is %s, but the detected "
+                                "expression type is %s" % (rtype, ebody_type))
+
+        # Discard parameters
+        for x in bindings:
+            self.cache.unbind(x)
+
+        # Finish Parsing
+        self.consume_closing(tokens, current)
+        return SmtLibCommand(current, [var, formal, rtype, ebody])
+
 
     def _cmd_define_funs_rec(self, current, tokens):
         """(define-funs-rec (<fun_dec>^{n+1}) (<term>^{n+1>))"""

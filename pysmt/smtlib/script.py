@@ -24,6 +24,7 @@ import pysmt.smtlib.commands as smtcmd
 from pysmt.exceptions import (UnknownSmtLibCommandError, NoLogicAvailableError,
                               UndefinedLogicError, PysmtValueError)
 from pysmt.smtlib.printers import SmtPrinter, SmtDagPrinter, quote
+from pysmt.printers import smart_serialize
 from pysmt.oracles import get_logic
 from pysmt.logics import get_closer_smtlib_logic, Logic, SMTLIB2_LOGICS
 from pysmt.environment import get_env
@@ -91,9 +92,10 @@ class SmtLibCommand(namedtuple('SmtLibCommand', ['name', 'args'])):
 
         elif self.name == smtcmd.GET_VALUE:
             outstream.write("(%s (" % self.name)
-            for a in self.args:
+            for i, a in enumerate(self.args):
                 printer.printer(a)
-                outstream.write(" ")
+                if i < len(self.args) - 1:
+                    outstream.write(" ")
             outstream.write("))")
 
         elif self.name in [smtcmd.MAXIMIZE, smtcmd.MINIMIZE]:
@@ -126,9 +128,16 @@ class SmtLibCommand(namedtuple('SmtLibCommand', ['name', 'args'])):
         elif self.name == smtcmd.SET_LOGIC:
             outstream.write("(%s %s)" % (self.name, self.args[0]))
 
-        elif self.name in [smtcmd.DECLARE_FUN, smtcmd.DECLARE_CONST]:
+        elif self.name == smtcmd.DECLARE_FUN:
             symbol = self.args[0]
             type_str = symbol.symbol_type().as_smtlib()
+            outstream.write("(%s %s %s)" % (self.name,
+                                            quote(symbol.symbol_name()),
+                                            type_str))
+
+        elif self.name == smtcmd.DECLARE_CONST:
+            symbol = self.args[0]
+            type_str = str(symbol.symbol_type()) # zenan change it for declare-const
             outstream.write("(%s %s %s)" % (self.name,
                                             quote(symbol.symbol_name()),
                                             type_str))
@@ -163,7 +172,18 @@ class SmtLibCommand(namedtuple('SmtLibCommand', ['name', 'args'])):
             outstream.write("(%s %s %d)" % (self.name,
                                             type_decl.name,
                                             type_decl.arity))
-
+        elif self.name == smtcmd.DEFINE_FUN_REC:
+            name = self.args[0]
+            params_list = self.args[1]
+            params = " ".join(["(%s %s)" % (v, v.symbol_type().as_smtlib(funstyle=False)) for v in params_list])
+            rtype = self.args[2]
+            expr = self.args[3]
+            outstream.write("(%s %s (%s) %s " % (self.name,
+                                                name,
+                                                params,
+                                                rtype.as_smtlib(funstyle=False)))
+            printer.printer(expr)
+            outstream.write(")")
         elif self.name in smtcmd.ALL_COMMANDS:
             raise NotImplementedError("'%s' is a valid SMT-LIB command "\
                                       "but it is currently not supported. "\
@@ -262,7 +282,7 @@ class SmtLibScript(object):
         with open(fname, "w") as outstream:
             self.serialize(outstream, daggify=daggify)
 
-    def serialize(self, outstream, daggify=True):
+    def serialize(self, outstream, comment=False, daggify=True):
         """Serializes the SmtLibScript expanding commands"""
         if daggify:
             printer = SmtDagPrinter(outstream, annotations=self.annotations)
@@ -270,6 +290,15 @@ class SmtLibScript(object):
             printer = SmtPrinter(outstream, annotations=self.annotations)
 
         for cmd in self.commands:
+            # https://github.com/pysmt/pysmt/issues/457
+            if comment == True and cmd.name == "assert": 
+                fnode = cmd.args[0]
+                if len(fnode.args()) == 1:
+                    outstream.write(f"; {smart_serialize(cmd.args[0])}\n")
+                elif len(fnode.args()) == 2:
+                    lhs, rhs = fnode.arg(0), fnode.arg(1)
+                    if not lhs.is_constant() and not rhs.is_constant():
+                        outstream.write(f"; {smart_serialize(cmd.args[0])}\n")
             cmd.serialize(printer=printer)
             outstream.write("\n")
 
@@ -403,6 +432,10 @@ class InterpreterSMT(object):
             name = cmd.args[0].name
             arity = cmd.args[0].arity
             return solver.declare_sort(name, arity)
+        
+        elif cmd.name == smtcmd.DEFINE_FUN_REC:
+            (var, formals, typename, body) = cmd.args
+            return solver.define_fun_rec(var, formals, typename, body)
 
         elif cmd.name in smtcmd.ALL_COMMANDS:
             raise NotImplementedError("'%s' is a valid SMT-LIB command "\

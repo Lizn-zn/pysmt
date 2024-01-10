@@ -240,9 +240,6 @@ class FormulaManager(object):
         if len(tuple_args) == 1:
             return tuple_args[0]
         else:
-            # for (i, element) in enumerate(tuple_args):
-                # if element.is_constant(types.INT):
-                    # tuple_args[i] = self.Real(element)
             return self.create_node(node_type=op.TIMES,
                                     args=tuple_args)
 
@@ -254,9 +251,10 @@ class FormulaManager(object):
         # if not exponent.is_constant():
             # raise PysmtValueError("The exponent of POW must be a constant.", exponent)
         # if base.is_constant():
-        if base.is_constant() and exponent.is_constant():
+        if base.is_int_constant() and exponent.is_int_constant():
             val = base.constant_value() ** exponent.constant_value()
-            return self.Real(val)
+            if val < 2^32: # set an upper bound for pow simplification
+                return self.Int(val)                
         return self.create_node(node_type=op.POW, args=(base, exponent))
 
     def Div(self, left, right):
@@ -274,7 +272,20 @@ class FormulaManager(object):
 
         # This is a non-linear expression
         return self.create_node(node_type=op.DIV,
-                                args=(left, right))
+                                args=(self.ToReal(left), self.ToReal(right)))
+
+    def IntDiv(self, left, right):
+        """ Creates an expression of the form: left // right """
+        if (right.is_constant(types.REAL, 0) or
+            right.is_constant(types.INT, 0)) \
+           and self.env.enable_div_by_0:
+            # Allow division by 0 byt warn the user
+            # This can only happen in non-linear logics
+            warnings.warn("Warning: Division by 0")
+
+        # This is a non-linear expression
+        return self.create_node(node_type=op.INTDIV,
+                                args=(self.RealToInt(left), self.RealToInt(right)))
 
     def Equals(self, left, right):
         """ Creates an expression of the form: left = right
@@ -483,11 +494,30 @@ class FormulaManager(object):
             raise PysmtTypeError("Argument is of type %s, but INT was "
                                  "expected!\n" % t)
 
+    def Round(self, formula):
+        """ This is exactly consistent with RealToInt. """
+        t = self.env.stc.get_type(formula)
+        if t == types.INT:
+            return formula
+        elif t == types.REAL:
+            return self.create_node(node_type=op.ROUND,
+                                    args=(formula,))
+        else:
+            raise PysmtTypeError("Argument is of type %s, but REAL was "
+                                 "expected!\n" % t)
+
     def RealToInt(self, formula):
         """ Cast a real formula to the int
             that is no more than the real. """
-        return self.create_node(node_type=op.REALTOINT,
-                                args=(formula,))
+        t = self.env.stc.get_type(formula)
+        if t == types.INT:
+            return formula
+        elif t == types.REAL:
+            return self.create_node(node_type=op.REALTOINT,
+                                    args=(formula,))
+        else:
+            raise PysmtTypeError("Argument is of type %s, but REAL was "
+                                 "expected!\n" % t)
 
     def Ceil(self, formula):
         """ Cast a real formula to the int
@@ -613,7 +643,31 @@ class FormulaManager(object):
     def Modulo(self, left, right):
         """Returns the encoding of the modulo expression left % right"""
         return self.create_node(node_type=op.MOD,
-                                args=(left, right))
+                                args=(self.RealToInt(left), self.RealToInt(right)))
+
+    def GCD(self, left, right):
+        """Returns the encoding of the greatest common divisor expression"""
+        return self.create_node(node_type=op.GCD,
+                                args=(self.RealToInt(left), self.RealToInt(right)))
+
+    def LCM(self, left, right):
+        """Returns the encoding of the least common multiple expression"""
+        return self.create_node(node_type=op.LCM,
+                                args=(self.RealToInt(left), self.RealToInt(right)))
+
+    def Exp(self, formula):
+        """ Creates an expression of the form: exp(formula) """
+        return self.create_node(node_type=op.EXP,
+                                args=(formula,))
+                                
+    def Sin(self, formula):
+        """ Creates an expression of the form: sin(formula) """
+        return self.create_node(node_type=op.SIN,
+                                args=(formula,))
+
+    def PI(self):
+        """ Creates an expression of the form: PI """
+        return self.create_node(node_type=op.PI, args=())
 
     def EqualsOrIff(self, left, right):
         """Returns Equals() or Iff() depending on the type of the arguments.

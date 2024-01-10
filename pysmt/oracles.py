@@ -242,6 +242,7 @@ class TheoryOracle(walkers.DagWalker):
         return theory_out
         rtype = formula.symbol_name()
 
+    @walkers.handles([op.ROUND, op.REALTOINT])
     def walk_realtoint(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         """Extends the Theory with NIRA."""
@@ -281,6 +282,12 @@ class TheoryOracle(walkers.DagWalker):
     
     def walk_mod(self, formula, args, **kwargs):
         return args[0].set_linear(False)
+
+    def walk_gcd(self, formula, args, **kwargs):
+        return args[0].set_linear(False)
+
+    def walk_lcm(self, formula, args, **kwargs):
+        return args[0].set_linear(False)
     
     def walk_log(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
@@ -295,6 +302,13 @@ class TheoryOracle(walkers.DagWalker):
         theory_out = theory_out.set_difference_logic(value=False)
         assert not theory_out.real_difference
         assert not theory_out.integer_difference
+        return theory_out
+
+    @walkers.handles([op.EXP, op.SIN, op.PI])
+    def walk_transcendental(selfself, formula, args, **kwargs):
+        theory_out = Theory(transcendental=True)
+        for t in args:
+            theory_out = theory_out.combine(t)
         return theory_out
 
     def walk_strings(self, formula, args, **kwargs):
@@ -342,6 +356,27 @@ class TheoryOracle(walkers.DagWalker):
         theory_out = theory_out.set_difference_logic(False)
         return theory_out
 
+    def walk_intdiv(self, formula, args, **kwargs):
+        """Temply copy walk_div; Extends the Theory with Non-Linear, if needed."""
+        assert len(args) == 2
+        theory_out = args[0]
+        for t in args[1:]:
+            theory_out = theory_out.combine(t)
+        # Check for non-linear
+        left, right = formula.args()
+        if len(left.get_free_variables()) != 0 and \
+           len(right.get_free_variables()) != 0:
+            theory_out = theory_out.set_linear(False)
+        elif formula.arg(1).is_zero():
+            # DivBy0 is non-linear
+            theory_out = theory_out.set_linear(False)
+        else:
+            theory_out = theory_out.combine(args[1])
+        return theory_out
+
+        # This is  not in DL anymore
+        theory_out = theory_out.set_difference_logic(False)
+        return theory_out
 # EOC TheoryOracle
 
 

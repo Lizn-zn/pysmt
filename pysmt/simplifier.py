@@ -395,21 +395,21 @@ class Simplifier(pysmt.walkers.DagWalker):
         return self.manager.Times(new_args)
 
     def walk_pow(self, formula, args, **kwargs):
-        if args[0].is_real_constant():
-            l = args[0].constant_value()
-            r = args[1].constant_value()
-            return self.manager.Real(l**r)
-
-        if args[0].is_int_constant():
-            l = args[0].constant_value()
-            r = args[1].constant_value()
-            return self.manager.Int(l**r)
-
-        if args[0].is_algebraic_constant():
-            from pysmt.constants import Numeral
-            l = args[0].constant_value()
-            r = args[1].constant_value()
-            return self.manager._Algebraic(Numeral(l**r))
+        if args[0].is_constant() and args[1].is_constant():
+            if args[0].is_int_constant() and args[1].is_int_constant():
+                l = args[0].constant_value()
+                r = args[1].constant_value()
+                return self.manager.Int(l**r)
+            elif args[0].is_algebraic_constant() and args[1].is_algebraic_constant():
+                from pysmt.constants import Numeral
+                l = args[0].constant_value()
+                r = args[1].constant_value()
+                return self.manager._Algebraic(Numeral(l**r))
+            else:
+                assert args[0].is_real_constant() and args[1].is_real_constant()
+                l = args[0].constant_value()
+                r = args[1].constant_value()
+                return self.manager.Real(l**r)
 
         return self.manager.Pow(args[0], args[1])
     
@@ -420,7 +420,7 @@ class Simplifier(pysmt.walkers.DagWalker):
             r = args[1].constant_value()
             return self.manager.Int(l % r)
 
-        return self.manager.Mod(args[0], args[1])
+        return self.manager.Modulo(args[0], args[1])
 
     def walk_minus(self, formula, args, **kwargs):
         assert len(args) == 2
@@ -1024,6 +1024,7 @@ class Simplifier(pysmt.walkers.DagWalker):
                                   args[0],
                                   assign)
 
+    @handles(op.DIV)
     def walk_div(self, formula, args, **kwargs):
         sl = args[0]
         sr = args[1]
@@ -1053,10 +1054,38 @@ class Simplifier(pysmt.walkers.DagWalker):
 
         return self.manager.Div(sl, sr)
 
+    @handles(op.INTDIV)
+    def walk_intdiv(self, formula, args, **kwargs):
+        sl = args[0]
+        sr = args[1]
+
+        if sl.is_constant() and sr.is_constant() and not sr.is_zero():
+            l = sl.constant_value()
+            r = sr.constant_value()
+            if sl.is_real_constant():
+                return self.manager.Int(eval(f"{l} / {r}"))
+            else:
+                assert sl.is_int_constant()
+                # smtlib2 semantics of integer division:
+                # r > 0 : l / r == floor(float(l) / r)
+                # r < 0 : l / r == ceil(float(l) / r)
+                return self.manager.Int(l / r)
+
+        if sl.is_constant():
+            if sl.is_zero():
+                return sl
+
+        if sr.is_constant():
+            if sr.is_one():
+                return sl
+
+        return self.manager.IntDiv(sl, sr)
+
     @handles(op.SYMBOL)
     @handles(op.REAL_CONSTANT, op.INT_CONSTANT, op.BOOL_CONSTANT)
     @handles(op.BV_CONSTANT, op.STR_CONSTANT, op.ALGEBRAIC_CONSTANT)
     @handles(op.REALTOINT)
+    @handles(op.LOG)
     def walk_identity(self, formula, args, **kwargs):
         return formula
 

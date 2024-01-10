@@ -320,7 +320,7 @@ def ToReal(formula):
     """Explicit cast of a term into a Real term."""
     return get_env().formula_manager.ToReal(formula)
 
-def RealToInt(formula):
+def ToInt(formula):
     '''Cast a real term to the int
        that is no more than the real.'''
     return get_env().formula_manager.RealToInt(formula)

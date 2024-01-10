@@ -55,6 +55,7 @@ from pysmt.constants import Fraction, Numeral, is_pysmt_integer
 # patch z3api
 z3.is_ite = lambda x: z3.is_app_of(x, z3.Z3_OP_ITE)
 z3.is_function = lambda x: z3.is_app_of(x, z3.Z3_OP_UNINTERPRETED)
+z3.is_rec_function = lambda x: z3.is_app_of(x, z3.Z3_OP_RECURSIVE)
 z3.is_array_store = lambda x: z3.is_app_of(x, z3.Z3_OP_STORE)
 z3.is_infinite = lambda x: z3.is_const(x) and str(x.decl()) == "oo"
 z3.is_epsilon = lambda x: z3.is_const(x) and str(x.decl()) == "epsilon"
@@ -117,10 +118,7 @@ class Z3Options(SolverOptions):
     def _set_option(z3solver, name, value):
         try:
             z3solver.set(name, value)
-        except z3.Z3Exception:
-            raise PysmtValueError("Error setting the option '%s=%s'" \
-                                  % (name, value))
-        except z3.z3types.Z3Exception:
+        except (z3.Z3Exception, z3.z3types.Z3Exception):
             raise PysmtValueError("Error setting the option '%s=%s'" \
                                   % (name, value))
 
@@ -133,10 +131,9 @@ class Z3Options(SolverOptions):
         for k,v in self.solver_options.items():
             try:
                 self._set_option(solver.z3, str(k), v)
-            except z3.Z3Exception:
+            except (z3.z3types.Z3Exception, z3.Z3Exception):
                 raise PysmtValueError("Error setting the option '%s=%s'" % (k,v))
-            except z3.z3types.Z3Exception:
-                raise PysmtValueError("Error setting the option '%s=%s'" % (k,v))
+            
 # EOC Z3Options
 
 
@@ -159,13 +156,14 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
                                            **options)
         # LBYL to avoid a possible segmentation fault caused by z3.SolverFor
         # See issue #465 (https://github.com/pysmt/pysmt/issues/465)
+        
         if str(logic) in Z3Solver.SOLVERFOR_LOGIC_NAMES:
             self.z3 = z3.SolverFor(str(logic))
         else:
             self.z3 = z3.Solver()
+        self.converter = Z3Converter(environment, z3_ctx=self.z3.ctx)
         self.options(self)
         self.declarations = set()
-        self.converter = Z3Converter(environment, z3_ctx=self.z3.ctx)
         self.mgr = environment.formula_manager
 
         self._name_cnt = 0
@@ -179,6 +177,11 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
     @clear_pending_pop
     def declare_variable(self, var):
         raise NotImplementedError
+
+    @clear_pending_pop
+    def define_fun_rec(self, name, args, rtype, expr): 
+        self.converter._rec_funs[name] = (args, rtype, expr) # zenan: lazy define rec_fun
+        return None
 
     @clear_pending_pop
     def _add_assertion(self, formula, named=None):
@@ -216,6 +219,10 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
                 self.pending_pop = True
             res = self.z3.check(*bool_ass)
         else:
+            # zenan 2024.1.10: temply add this to ensure model-add commands appears when having rec_funs
+            if self.converter._rec_funs:
+                _ = self.z3.check()
+                self.z3.from_string(self.z3.sexpr())
             res = self.z3.check()
 
         sres = str(res)
@@ -285,7 +292,6 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
 
     def get_value(self, item):
         self._assert_no_function_type(item)
-
         titem = self.converter.convert(item)
         z3_res = self.z3.model().eval(titem, model_completion=True)
         res = self.converter.back(z3_res, self.z3.model())
@@ -310,6 +316,7 @@ class Z3Converter(Converter, DagWalker):
         self.mgr = environment.formula_manager
         self._get_type = environment.stc.get_type
         self._back_memoization = {}
+        self._rec_funs = {}
         self.ctx = z3_ctx
 
         # Back Conversion
@@ -467,6 +474,16 @@ class Z3Converter(Converter, DagWalker):
         ref_class = self.get_z3_ref(formula)
         return ref_class(z3term, self.ctx)
 
+    def body_walk(self, formula):
+        """ This is for define-fun-rec
+            we refresh the stack to convert the formula
+        """
+        copy_stack = self.stack
+        self.stack = []
+        z3term = self.walk(formula)
+        self.stack = copy_stack
+        return z3term
+
     def back(self, expr, model=None):
         """Convert a Z3 expression back into a pySMT expression.
 
@@ -569,6 +586,10 @@ class Z3Converter(Converter, DagWalker):
             # This needs to be after we try to convert regular Symbols
             fsymbol = self.mgr.get_symbol(expr.decl().name())
             return self.mgr.Function(fsymbol, args)
+        # elif z3.is_rec_function(expr):
+        #     # This needs to be after we try to convert regular Symbols
+        #     fsymbol = self.mgr.get_symbol(expr.decl().name())
+        #     return self.mgr.Function(fsymbol, args)
 
         # If we reach this point, we did not manage to translate the expression
         raise ConvertExpressionError(message=("Unsupported expression: %s" %
@@ -619,7 +640,7 @@ class Z3Converter(Converter, DagWalker):
         for i, arg in enumerate(args):
             _args[i] = arg
         return _args, sz
-
+        
     def walk_not(self, formula, args, **kwargs):
         z3term = z3.Z3_mk_not(self.ctx.ref(), args[0])
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
@@ -728,6 +749,12 @@ class Z3Converter(Converter, DagWalker):
         z3term = z3.Z3_mk_real2int(self.ctx.ref(), args[0])
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
+
+    def walk_round(self, formula, args, **kwargs):
+        """ exactly same with walk_realtoint """
+        z3term = z3.Z3_mk_real2int(self.ctx.ref(), args[0])
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
     
     def _z3_func_decl(self, func_name):
         """Create a Z3 Function Declaration for the given function."""
@@ -747,9 +774,42 @@ class Z3Converter(Converter, DagWalker):
             self._z3_func_decl_cache[func_name] = z3func
             return z3func
 
+    def _z3_rec_func_decl(self, func_name):
+        """Create a Z3 Recursive Function Declaration for the given function."""
+        try:
+            return self._z3_func_decl_cache[func_name]
+        except KeyError:
+            tp = func_name.symbol_type()
+            arity = len(tp.param_types)
+            z3dom = (z3.Sort * arity)()
+            for i, t in enumerate(tp.param_types):
+                z3dom[i] = self._type_to_z3(t).ast
+            z3ret = self._type_to_z3(tp.return_type).ast
+            z3name = z3.Z3_mk_string_symbol(self.ctx.ref(),
+                                            func_name.symbol_name())
+            z3func = z3.Z3_mk_rec_func_decl(self.ctx.ref(), z3name,
+                                        arity, z3dom, z3ret)
+            self._z3_func_decl_cache[func_name] = z3func
+            return z3func
+
     def walk_function(self, formula, args, **kwargs):
-        z3func = self._z3_func_decl(formula.function_name())
+        """ Create a Z3 Function Application for the given function. 
+            If the function is recursive, then create a Z3 Recursive Function Application. """
+        func_name = formula.function_name()
         _args, sz = self._to_ast_array(args)
+        if func_name in self._z3_func_decl_cache:
+            z3func = self._z3_func_decl_cache[func_name]
+        elif str(func_name) in self._rec_funs: # if it is rec funs
+            args, _, expr = self._rec_funs[str(func_name)]
+            z3func = self._z3_rec_func_decl(formula.function_name())
+            body = self.body_walk(expr)
+            new_args = args
+            for (i, a) in enumerate(args):
+                new_args[i] = self.walk_symbol(a)
+            new_args, sz = self._to_ast_array(new_args)
+            z3.Z3_add_rec_def(self.ctx.ref(), z3func, sz, new_args, body)
+        else:
+            z3func = self._z3_func_decl(str(func_name))
         z3term = z3.Z3_mk_app(self.ctx.ref(), z3func, sz, _args)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
@@ -806,7 +866,7 @@ class Z3Converter(Converter, DagWalker):
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
 
-    def walk_bv_sext (self, formula, args, **kwargs):
+    def walk_bv_sext(self, formula, args, **kwargs):
         z3term = z3.Z3_mk_sign_ext(self.ctx.ref(),
                                    formula.bv_extend_step(), args[0])
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
@@ -883,6 +943,16 @@ class Z3Converter(Converter, DagWalker):
             z3.Z3_inc_ref(self.ctx.ref(), z3term)
             return z3term
         return walk_binary
+    
+    # def walk_pi(self, formula, args, **kwargs):
+    #     temp_smt = "(declare-fun c () Real)\n(assert (= c pi))\n(check-sat)"
+    #     s = z3.Solver()
+    #     s.from_string(temp_smt)
+    #     s.check()
+    #     m = s.model()
+    #     z3term = m[m[0]].as_ast()
+    #     z3.Z3_inc_ref(self.ctx.ref(), z3term)
+    #     return z3term
 
     walk_and     = make_walk_nary(z3.Z3_mk_and)
     walk_or      = make_walk_nary(z3.Z3_mk_or)
@@ -897,6 +967,7 @@ class Z3Converter(Converter, DagWalker):
     walk_pow     = make_walk_binary(z3.Z3_mk_power)
     walk_mod     = make_walk_binary(z3.Z3_mk_mod)
     walk_div     = make_walk_binary(z3.Z3_mk_div)
+    walk_intdiv  = make_walk_binary(z3.Z3_mk_div)
     walk_bv_ult  = make_walk_binary(z3.Z3_mk_bvult)
     walk_bv_ule  = make_walk_binary(z3.Z3_mk_bvule)
     walk_bv_slt  = make_walk_binary(z3.Z3_mk_bvslt)
@@ -947,6 +1018,7 @@ class Z3Converter(Converter, DagWalker):
                 z3.Z3_dec_ref(self.ctx.ref(), t)
 
 # EOC Z3Converter
+
 
 class Z3QuantifierEliminator(QuantifierEliminator):
 
@@ -1035,8 +1107,8 @@ class Z3Interpolator(Interpolator):
             pysmt_res = [self.converter.back(f) for f in itp]
         except z3.ModelRef:
             pysmt_res = None
-
         return pysmt_res
 
     def _exit(self):
         pass
+

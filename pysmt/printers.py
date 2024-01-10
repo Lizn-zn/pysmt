@@ -169,20 +169,53 @@ class HRPrinter(TreeWalker):
         return self.walk_quantifier("exists ", ", ", " . ", formula)
 
     def walk_toreal(self, formula):
-        self.write("ToReal(")
+        # self.write("ToReal(")
         yield formula.arg(0)
-        self.write(")")
+        # self.write(")")
 
     def walk_realtoint(self, formula):
-        self.write("RealToInt(")
+        # self.write("RealToInt(")
         yield formula.arg(0)
-        self.write(")")
+        # self.write(")")
+
+    def walk_round(self, formula):
+        # self.write("RealToInt(")
+        yield formula.arg(0)
+        # self.write(")")
         
     def walk_log(self, formula):
         self.write("log(")
         yield formula.arg(0)
         self.write(")")
-        
+
+    def walk_gcd(self, formula):
+        self.write("gcd(")
+        for arg in formula.args()[:-1]:
+            yield arg
+            self.write(", ")
+        yield formula.args()[-1]
+        self.write(")")
+    
+    def walk_lcm(self, formula):
+        self.write("lcm(")
+        for arg in formula.args()[:-1]:
+            yield arg
+            self.write(", ")
+        yield formula.args()[-1]
+        self.write(")")
+    
+    def walk_pi(self, formula):
+        self.write("pi")
+
+    def walk_exp(self, formula):
+        self.write("exp(")
+        yield formula.arg(0)
+        self.write(")")
+    
+    def walk_sin(self, formula):
+        self.write("sin(")
+        yield formula.arg(0)
+        self.write(")")
         
     def walk_str_constant(self, formula):
         assert (type(formula.constant_value()) == str ), \
@@ -306,8 +339,9 @@ class HRPrinter(TreeWalker):
     def walk_plus(self, formula): return self.walk_nary(formula, " + ")
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")
+    def walk_intdiv(self, formula): return self.walk_nary(formula, " // ")
     def walk_pow(self, formula): return self.walk_nary(formula, " ^ ")
-    def walk_mod(self, formula): return self.walk_nary(formula, " % ")
+    def walk_mod(self, formula): return self.walk_nary(formula, " mod ")
     def walk_iff(self, formula): return self.walk_nary(formula, " <-> ")
     def walk_implies(self, formula): return self.walk_nary(formula, " -> ")
     def walk_minus(self, formula): return self.walk_nary(formula, " - ")

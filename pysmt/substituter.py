@@ -201,6 +201,15 @@ class Substituter(pysmt.walkers.IdentityDagWalker):
             subs = {}
         if interpretations is None:
             interpretations = {}
+        
+        #### align type again
+        aligned_subs = {}
+        for k, v in subs.items():
+            if k.get_type().is_real_type() and v.is_int_constant():
+                aligned_subs[k] = self.mgr.Real(v.constant_value())
+            else:
+                aligned_subs[k] = v
+        subs = aligned_subs # replace subs with aligned_subs
 
         for i, (k, v) in enumerate(subs.items()):
             # Check that substitutions are terms
@@ -235,7 +244,6 @@ class Substituter(pysmt.walkers.IdentityDagWalker):
             if k not in self.manager:
                 raise PysmtTypeError(
                     "Key %d does not belong to the Formula Manager." % i)
-
         res = self.walk(formula, substitutions=subs,
                         interpretations=interpretations)
         return res

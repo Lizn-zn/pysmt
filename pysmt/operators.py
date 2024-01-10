@@ -24,7 +24,7 @@ these operators.
 from itertools import chain
 
 
-ALL_TYPES = list(range(0,69))
+ALL_TYPES = list(range(0,76))
 
 (
 FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF, # Boolean Logic (0-6)
@@ -81,6 +81,15 @@ BV_TONATURAL,                               # BV to Natural Conversion (65)
 REALTOINT,                                  # Real to Integer Conversion (66)
 LOG,                                        # Logarithm (67)
 MOD,                                        # Modulo (68)
+INTDIV,                                     # Integer Division (69)
+ROUND,                                      # Rounding (70)
+
+EXP,                                        # Exponential (71)
+SIN,                                        # Sine (72)
+PI,                                         # Pi (73)
+
+GCD,                                        # Greatest Common Divisor (74)
+LCM,                                        # Least Common Multiple (75)
 ) = ALL_TYPES
 
 QUANTIFIERS = frozenset([FORALL, EXISTS])
@@ -113,7 +122,7 @@ STR_OPERATORS = frozenset([STR_LENGTH, STR_CONCAT, STR_INDEXOF, STR_REPLACE,
                            STR_SUBSTR, STR_CHARAT, STR_TO_INT, INT_TO_STR,])
 
 IRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, BV_TONATURAL,
-                          REALTOINT, LOG, MOD])
+                          REALTOINT, LOG, MOD, INTDIV, ROUND, EXP, SIN, PI, GCD, LCM])
 
 ARRAY_OPERATORS = frozenset([ARRAY_SELECT, ARRAY_STORE, ARRAY_VALUE])
 
@@ -229,4 +238,11 @@ __OP_STR__ = {
     REALTOINT : "REALTOINT",
     LOG : "LOG",
     MOD : "MOD",
+    INTDIV: "INTDIV",
+    ROUND: "ROUND",
+    EXP: "EXP",
+    SIN: "SIN",
+    PI: "PI",
+    GCD: "GCD",
+    LCM: "LCM",
 }

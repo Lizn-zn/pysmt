@@ -76,8 +76,16 @@ class SmtPrinter(TreeWalker):
         self.write("(%s" % operator)
         for s in formula.args():
             self.write(" ")
+            if s.is_constant() and s.constant_value() == int(s.constant_value()): # handle int for simplification
+                s = self.mgr.Int(int(s.constant_value()))
             yield s
         self.write(")")
+    
+    def walk_conversion(self, formula):
+        yield formula.arg(0)
+
+    def walk_constant(self, formula, constant):
+        self.write(constant)
 
     def walk_and(self, formula): return self.walk_nary(formula, "and")
     def walk_or(self, formula): return self.walk_nary(formula, "or")
@@ -91,12 +99,19 @@ class SmtPrinter(TreeWalker):
     def walk_le(self, formula): return self.walk_nary(formula, "<=")
     def walk_lt(self, formula): return self.walk_nary(formula, "<")
     def walk_ite(self, formula): return self.walk_nary(formula, "ite")
-    def walk_toreal(self, formula): return self.walk_nary(formula, "to_real")
-    def walk_realtoint(self, formula): return self.walk_nary(formula, "to_int")
+    def walk_round(self, formula): return self.walk_nary(formula, "round")
+    def walk_toreal(self, formula): return self.walk_conversion(formula) # return self.walk_nary(formula, "to_real")
+    def walk_realtoint(self, formula): return self.walk_conversion(formula) # return self.walk_nary(formula, "to_int")
     def walk_div(self, formula): return self.walk_nary(formula, "/")
-    def walk_mod(self, formula): return self.walk_nary(formula, "%")
+    def walk_intdiv(self, formula): return self.walk_nary(formula, "div")
+    def walk_mod(self, formula): return self.walk_nary(formula, "mod")
+    def walk_gcd(self, formula): return self.walk_nary(formula, "gcd")
+    def walk_lcm(self, formula): return self.walk_nary(formula, "lcm")
     def walk_pow(self, formula): return self.walk_nary(formula, "pow")
+    def walk_pi(self, formula): return self.walk_constant(formula, "pi")
     def walk_log(self, formula): return self.walk_nary(formula, "log")
+    def walk_exp(self, formula): return self.walk_nary(formula, "exp")
+    def walk_sin(self, formula): return self.walk_nary(formula, "sin")
     def walk_bv_and(self, formula): return self.walk_nary(formula, "bvand")
     def walk_bv_or(self, formula): return self.walk_nary(formula, "bvor")
     def walk_bv_not(self, formula): return self.walk_nary(formula, "bvnot")
@@ -419,14 +434,20 @@ class SmtDagPrinter(DagWalker):
     def walk_ite(self, formula, args):
         return self.walk_nary(formula, args, "ite")
 
-    def walk_toreal(self, formula, args):
-        return self.walk_nary(formula, args, "to_real")
+    # def walk_toreal(self, formula, args):
+        # return self.walk_nary(formula, args, "to_real")
     
-    def walk_realtoint(self, formula, args):
-        return self.walk_nary(formula, args, "to_int")
+    # def walk_realtoint(self, formula, args):
+        # return self.walk_nary(formula, args, "to_int")
+
+    def walk_round(self, formula, args):
+        return self.walk_nary(formula, args, "round")
 
     def walk_div(self, formula, args):
         return self.walk_nary(formula, args, "/")
+
+    def walk_intdiv(self, formula, args):
+        return self.walk_nary(formula, args, "div")
 
     def walk_pow(self, formula, args):
         return self.walk_nary(formula, args, "pow")

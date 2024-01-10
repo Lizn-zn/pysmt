@@ -73,7 +73,7 @@ class SimpleTypeChecker(walkers.DagWalker):
         #pylint: disable=unused-argument
         return self.walk_type_to_type(formula, args, REAL, REAL)
 
-    @walkers.handles(op.PLUS, op.MINUS, op.TIMES, op.DIV)
+    @walkers.handles(op.PLUS, op.MINUS, op.TIMES, op.DIV, op.INTDIV)
     def walk_realint_to_realint(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         rval = self.walk_type_to_type(formula, args, REAL, REAL)
@@ -81,6 +81,7 @@ class SimpleTypeChecker(walkers.DagWalker):
             rval = self.walk_type_to_type(formula, args, INT, INT)
         return rval
 
+    @walkers.handles(op.ROUND, op.REALTOINT)
     def walk_realtoint(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         arg = args[0]
@@ -90,6 +91,11 @@ class SimpleTypeChecker(walkers.DagWalker):
             return INT
         else:
             return None
+
+    @walkers.handles(op.PI, op.SIN, op.EXP)
+    def walk_nra(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        return REAL
 
     @walkers.handles(op.BV_ADD, op.BV_SUB, op.BV_NOT, op.BV_AND, op.BV_OR)
     @walkers.handles(op.BV_XOR, op.BV_NEG, op.BV_MUL)
@@ -347,8 +353,8 @@ class SimpleTypeChecker(walkers.DagWalker):
             return None
         return REAL
     
-    @walkers.handles(op.MOD)
-    def walk_mod(self, formula, args, **kwargs):
+    @walkers.handles(op.MOD, op.GCD, op.LCM)
+    def walk_intop(self, formula, args, **kwargs):
         if args[0].is_int_type() and \
                     args[1].is_int_type():
             return INT

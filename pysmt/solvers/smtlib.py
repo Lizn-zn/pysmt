@@ -237,6 +237,9 @@ class SmtLibIgnoreMixin(SmtLibSolver):
     def declare_fun(self, symbol):
         return None
 
+    def define_fun_rec(self, name, args, rtype, expr):
+        return None
+
     def declare_const(self, symbol):
         return None
 

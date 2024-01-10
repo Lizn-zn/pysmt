@@ -38,6 +38,22 @@ pySMT makes working with **Satisfiability Modulo Theory** simple:
 .. image:: https://cdn.rawgit.com/pysmt/pysmt/master/docs/architecture.svg
            :alt: PySMT Architecture Overview
 
+
+Our Modifications
+=====
+- Some bug fixes
+- Add support for define-fun-rec (only for z3 now)
+- Add support operators, e.g., GCD and LCM, for the sequal work
+- Minors of Serialization, for better printing
+
+
+Our TODOs
+=====
+- [] define-fun-rec for other engine (cvc4 and msat)
+- [] define-funs-rec for solvers
+- [] More operators support, e.g., pi and e
+
+
 Usage
 =====
 

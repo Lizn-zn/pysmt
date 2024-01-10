@@ -94,11 +94,26 @@ class IdentityDagWalker(DagWalker):
     def walk_times(self, formula, args, **kwargs):
         return self.mgr.Times(args)
 
+    def walk_pi(self, formula, args, **kwargs):
+        return self.mgr.PI()
+
     def walk_pow(self, formula, args, **kwargs):
         return self.mgr.Pow(args[0], args[1])
+
+    def walk_gcd(self, formula, args, **kwargs):
+        return self.mgr.Gcd(args)
+
+    def walk_lcm(self, formula, args, **kwargs):
+        return self.mgr.Lcm(args)
     
     def walk_mod(self, formula, args, **kwargs):
-        return self.mgr.Mod(args[0], args[1])
+        return self.mgr.Modulo(args[0], args[1])
+
+    def walk_round(self, formula, args, **kwargs):
+        return self.mgr.Round(args[0])
+    
+    def walk_realtoint(self, formula, args, **kwargs):
+        return self.mgr.RealToInt(args[0])
     
     def walk_log(self, formula, args, **kwargs):
         return self.mgr.Logarithm(args[0])
@@ -248,3 +263,6 @@ class IdentityDagWalker(DagWalker):
 
     def walk_div(self, formula, args, **kwargs):
         return self.mgr.Div(args[0], args[1])
+
+    def walk_intdiv(self, formula, args, **kwargs):
+        return self.mgr.IntDiv(args[0], args[1])

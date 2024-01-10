@@ -35,6 +35,7 @@ class Theory(object):
                  integer_difference = None,
                  real_difference = None,
                  linear = None,
+                 transcendental = None,
                  uninterpreted = None,
                  custom_type = None,
                  strings = None):
@@ -47,6 +48,7 @@ class Theory(object):
         self.integer_difference = integer_difference or False
         self.real_difference = real_difference or False
         self.linear = linear if linear is not None else True
+        self.transcendental = transcendental or False
         self.uninterpreted = uninterpreted or False
         self.custom_type = custom_type or False
         self.strings = strings or False
@@ -69,6 +71,11 @@ class Theory(object):
     def set_linear(self, value=True):
         res = self.copy()
         res.linear = value
+        return res
+
+    def set_transcendental(self, value=True):
+        res = self.copy()
+        res.transcendental = value
         return res
 
     def set_strings(self, value=True):
@@ -107,6 +114,7 @@ class Theory(object):
                             integer_difference = self.integer_difference,
                             real_difference = self.real_difference,
                             linear = self.linear,
+                            transcendental = self.transcendental,
                             uninterpreted = self.uninterpreted,
                             custom_type = self.custom_type,
                             strings = self.strings)
@@ -143,6 +151,7 @@ class Theory(object):
             integer_difference=integer_difference,
             real_difference=real_difference,
             linear=self.linear and other.linear,
+            transcendental=self.transcendental or other.transcendental,
             uninterpreted=self.uninterpreted or other.uninterpreted,
             custom_type=self.custom_type or other.custom_type,
             strings=self.strings or other.strings)
@@ -159,6 +168,7 @@ class Theory(object):
                 self.integer_difference == other.integer_difference and
                 self.real_difference == other.real_difference and
                 self.linear == other.linear and
+                self.transcendental == other.transcendental and
                 self.uninterpreted == other.uninterpreted and
                 self.custom_type == other.custom_type and
                 self.strings == other.strings)
@@ -192,6 +202,13 @@ class Theory(object):
         else:
             le_linear = False
 
+        if self.transcendental == other.transcendental:
+            le_transcendental = True
+        elif not self.transcendental and other.transcendental:
+            le_transcendental = True
+        else:
+            le_transcendental = False
+
         return (self.arrays <= other.arrays and
                 self.arrays_const <= other.arrays_const and
                 self.bit_vectors <= other.bit_vectors and
@@ -203,6 +220,7 @@ class Theory(object):
                 le_real_difference and
                 self.real_arithmetic <= other.real_arithmetic and
                 le_linear and
+                le_transcendental and
                 self.strings <= other.strings)
 
     def __str__(self):
@@ -215,6 +233,7 @@ class Theory(object):
                 "ID: %s, " % self.integer_difference +
                 "RD: %s, " % self.real_difference +
                 "Linear: %s, " % self.linear +
+                "Transcendental: %s, " % self.transcendental +
                 "EUF: %s, " % self.uninterpreted +
                 "Type: %s, " % self.custom_type +
                 "String: %s"% self.strings)
@@ -510,6 +529,14 @@ QF_NRA = Logic(name="QF_NRA",
                real_arithmetic=True,
                linear=False)
 
+QF_NRAT = Logic(name="QF_NRAT",
+               description=\
+"""Quantifier-free real arithmetic augmented with transcendental functions.""",
+               quantifier_free=True,
+               real_arithmetic=True,
+               linear=False,
+               transcendental=True)
+
 QF_NIRA = Logic(name="QF_NIRA",
                 description="""Quantifier-free integer and real arithmetic.""",
                 quantifier_free=True,
@@ -675,7 +702,7 @@ SMTLIB2_LOGICS = frozenset([AUFLIA,
                             QF_SLIA
                             ])
 
-LOGICS = SMTLIB2_LOGICS | frozenset([QF_BOOL, BOOL, QF_AUFBVLIRA, QF_NIRA])
+LOGICS = SMTLIB2_LOGICS | frozenset([QF_BOOL, BOOL, QF_AUFBVLIRA, QF_NIRA, QF_NRAT])
 
 QF_LOGICS = frozenset(_l for _l in LOGICS if _l.quantifier_free)
 
@@ -690,7 +717,7 @@ PYSMT_LOGICS = frozenset([QF_BOOL, QF_IDL, QF_LIA, QF_LRA, QF_RDL, QF_UF, QF_UFI
                           QF_BV, QF_UFBV,
                           QF_ABV, QF_AUFBV, QF_AUFLIA, QF_ALIA, QF_AX,
                           QF_AUFBVLIRA,
-                          QF_NRA, QF_NIA, QF_NIRA, UFBV, BV,
+                          QF_NRA, QF_NRAT, QF_NIA, QF_NIRA, UFBV, BV,
                           ])
 
 # PySMT Logics includes additional features:
@@ -766,6 +793,7 @@ def get_logic(quantifier_free=False,
               integer_difference=False,
               real_difference=False,
               linear=True,
+              transcendental=False,
               uninterpreted=False,
               custom_type=False,
               strings=False):
@@ -785,6 +813,7 @@ def get_logic(quantifier_free=False,
             logic.theory.integer_difference == integer_difference and
             logic.theory.real_difference == real_difference and
             logic.theory.linear == linear and
+            logic.theory.transcendental == transcendental and
             logic.theory.uninterpreted == uninterpreted and
             logic.theory.custom_type == custom_type and
             logic.theory.strings == strings):

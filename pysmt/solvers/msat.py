@@ -35,7 +35,7 @@ from pysmt.exceptions import (SolverReturnedUnknownResultError,
                               SolverNotConfiguredForUnsatCoresError,
                               SolverStatusError,
                               InternalSolverError,
-                              NonLinearError, PysmtValueError, PysmtTypeError,
+                              NonLinearError, PysmtValueError, PysmtTypeError, ModelUnsatError, ModelUnavilableError,
                               ConvertExpressionError)
 from pysmt.decorators import clear_pending_pop, catch_conversion_error
 from pysmt.solvers.qelim import QuantifierEliminator
@@ -272,11 +272,12 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
             res = self._msat_lib.msat_solve(self.msat_env())
 
         assert res in [self._msat_lib.MSAT_UNKNOWN, self._msat_lib.MSAT_SAT, self._msat_lib.MSAT_UNSAT]
-        if res == self._msat_lib.MSAT_UNKNOWN:
+        self.res_type = res # zenan: save the res in class
+        if self.res_type == self._msat_lib.MSAT_UNKNOWN:
             msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
             raise SolverReturnedUnknownResultError(msat_msg)
 
-        return (res == self._msat_lib.MSAT_SAT)
+        return (self.res_type == self._msat_lib.MSAT_SAT)
 
     def get_unsat_core(self):
         """After a call to solve() yielding UNSAT, returns the unsat core as a
@@ -361,6 +362,11 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
 
         titem = self.converter.convert(item)
         tval = self._msat_lib.msat_get_model_value(self.msat_env(), titem)
+        # if self._msat_lib.MSAT_ERROR_TERM(tval): ## zenan: catch the error if unsat
+        if not hasattr(self, 'res_type'):
+            raise ModelUnavilableError("model is not available")
+        elif self.res_type != self._msat_lib.MSAT_SAT:
+            raise ModelUnsatError("msat returns unsat")
         val = self.converter.back(tval)
         if self.environment.stc.get_type(item).is_real_type() and \
                val.is_int_constant():
@@ -412,6 +418,9 @@ class MSatConverter(Converter, DagWalker):
             self._msat_lib.MSAT_TAG_TIMES: self._back_adapter(self.mgr.Times),
             self._msat_lib.MSAT_TAG_POW: self._back_adapter(self.mgr.Div),
             self._msat_lib.MSAT_TAG_POW: self._back_adapter(self.mgr.Pow),
+            self._msat_lib.MSAT_TAG_EXP: self._back_adapter(self.mgr.Exp),
+            self._msat_lib.MSAT_TAG_SIN: self._back_adapter(self.mgr.Sin),
+            # self._msat_lib.MSAT_TAG_PI: self._back_adapter(self.mgr.PI),
             self._msat_lib.MSAT_TAG_LOG: self._back_adapter(self.mgr.Logarithm),
             self._msat_lib.MSAT_TAG_BV_MUL: self._back_adapter(self.mgr.BVMul),
             self._msat_lib.MSAT_TAG_BV_ADD: self._back_adapter(self.mgr.BVAdd),
@@ -468,6 +477,11 @@ class MSatConverter(Converter, DagWalker):
             self._msat_lib.MSAT_TAG_LEQ: self._sig_most_generic_bool_binary,
             self._msat_lib.MSAT_TAG_PLUS:  self._sig_most_generic_bool_binary,
             self._msat_lib.MSAT_TAG_TIMES: self._sig_most_generic_bool_binary,
+            self._msat_lib.MSAT_TAG_DIVIDE: self._sig_most_generic_bool_binary,
+            self._msat_lib.MSAT_TAG_POW: self._sig_most_generic_bool_binary,
+            self._msat_lib.MSAT_TAG_EXP: self._sig_unary,
+            self._msat_lib.MSAT_TAG_SIN: self._sig_unary,
+            # self._msat_lib.MSAT_TAG_PI: self._sig_unknown,
             self._msat_lib.MSAT_TAG_BV_MUL: self._sig_binary,
             self._msat_lib.MSAT_TAG_BV_ADD: self._sig_binary,
             self._msat_lib.MSAT_TAG_BV_UDIV:self._sig_binary,
@@ -776,8 +790,10 @@ class MSatConverter(Converter, DagWalker):
         if self._msat_lib.MSAT_ERROR_TERM(res):
             msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
             raise InternalSolverError(msat_msg)
-        if rformula != formula:
-            warn("self._msat_lib convert(): UF with bool arguments have been translated")
+        #### I mute this, because this is not a problem; 
+        #### occurs when e.g., (food_cost = (incentive * 1/3)) (food_cost = (incentive / 3.0))
+        # if rformula != formula:
+            # warn("self._msat_lib convert(): UF with bool arguments have been translated")
         return res
 
     def walk_and(self, formula, args, **kwargs):
@@ -1004,9 +1020,24 @@ class MSatConverter(Converter, DagWalker):
             res = self._msat_lib.msat_make_divide(self.msat_env(), res, x)
         return res
 
+    def walk_intdiv(self, formula, args, **kwargs):
+        res = args[0]
+        for x in args[1:]:
+            res = self._msat_lib.msat_make_divide(self.msat_env(), res, x)
+        return res
+    
     def walk_pow(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_pow(self.msat_env(),
                                     args[0], args[1])
+
+    def walk_exp(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_exp(self.msat_env(), args[0])
+
+    def walk_sin(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_sin(self.msat_env(), args[0])
+
+    # def walk_pi(self, formula, args, **kwargs):
+        # return self._msat_lib.msat_make_pi(self.msat_env())
         
     def walk_log(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_log(self.msat_env(), args[0])

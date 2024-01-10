@@ -145,6 +145,11 @@ class PysmtSyntaxError(PysmtException, SyntaxError):
         else:
             return self.message
 
+class ModelUnavilableError(PysmtException):
+    pass
+
+class ModelUnsatError(PysmtException):
+    pass
 
 class PysmtIOError(PysmtException, IOError):
     pass
@@ -174,7 +179,6 @@ class GoalNotSupportedError(PysmtException):
     def goal(self):
         return self.goal
     
-    
 class GoalUnavaibleError(PysmtException):
     """Goal is not available for given conditions."""
     def __init__(self, current_solver, goal):
@@ -186,3 +190,4 @@ class GoalUnavaibleError(PysmtException):
 
     def goal(self):
         return self.goal
+

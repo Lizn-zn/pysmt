@@ -30,7 +30,7 @@ from pysmt.logics import PYSMT_LOGICS, ARRAYS_CONST_LOGICS
 from pysmt.solvers.solver import Solver, Converter, SolverOptions
 from pysmt.exceptions import (SolverReturnedUnknownResultError,
                               InternalSolverError,
-                              NonLinearError, PysmtValueError,
+                              NonLinearError, PysmtValueError, ModelUnsatError, ModelUnavilableError,
                               PysmtTypeError)
 from pysmt.walkers import DagWalker
 from pysmt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
@@ -143,11 +143,11 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
                 raise InternalSolverError()
 
         # Convert returned type
-        res_type = res.isSat()
-        if res_type == CVC4.Result.SAT_UNKNOWN:
+        self.res_type = res.isSat() # zenan: record results in class
+        if self.res_type == CVC4.Result.SAT_UNKNOWN:
             raise SolverReturnedUnknownResultError()
         else:
-            return res_type == CVC4.Result.SAT
+            return self.res_type == CVC4.Result.SAT
         return
 
     def push(self, levels=1):
@@ -177,6 +177,11 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
         return
 
     def get_value(self, item):
+        # zenan: catch exception
+        if not hasattr(self, 'res_type'):
+            raise ModelUnavilableError("model is not available")
+        elif self.res_type != CVC4.Result.SAT:
+            raise ModelUnsatError("cvc4 returns unsat")
         self._assert_no_function_type(item)
         term = self.converter.convert(item)
         cvc4_res = self.cvc4.getValue(term)
@@ -343,8 +348,20 @@ class CVC4Converter(Converter, DagWalker):
     def walk_equals(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.EQUAL, args[0], args[1])
     
+    def walk_div(self, formula, args, **kwargs):
+        if self._get_type(formula.args()[0]).is_int_type() and self._get_type(formula.args()[1]).is_int_type():
+            return self.mkExpr(CVC4.INTS_DIVISION, args[0], args[1])
+        else:
+            return self.mkExpr(CVC4.DIVISION, args[0], args[1])
+
     def walk_pow(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.POW, args[0], args[1])
+
+    def walk_exp(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.EXPONENTIAL, args[0])
+
+    def walk_sin(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.SINE, args[0])
 
     def walk_times(self, formula, args, **kwargs):
         # if sum(1 for x in formula.args() if x.get_free_variables()) > 1:
@@ -355,6 +372,12 @@ class CVC4Converter(Converter, DagWalker):
         return res
     
     def walk_div(self, formula, args, **kwargs):
+        res = args[0]
+        for x in args[1:]:
+            res = self.mkExpr(CVC4.DIVISION, res, x)
+        return res
+
+    def walk_intdiv(self, formula, args, **kwargs):
         res = args[0]
         for x in args[1:]:
             res = self.mkExpr(CVC4.DIVISION, res, x)
