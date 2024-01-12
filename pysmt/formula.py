@@ -241,7 +241,7 @@ class FormulaManager(object):
 
         Restriction:
          - Arguments must be all of the same type
-         - Arguments must be INT or REAL
+         - Arguments must be INT or REAL or COMPLEX
         """
         tuple_args = self._polymorph_args_to_tuple(args)
         if len(tuple_args) == 0:

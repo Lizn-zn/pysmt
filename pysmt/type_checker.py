@@ -244,7 +244,8 @@ class SimpleTypeChecker(walkers.DagWalker):
     def walk_complex(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         assert len(args) == 2
-        return COMPLEX
+        return REAL
+        # return COMPLEX
 
     @walkers.handles(op.INT_CONSTANT)
     def walk_identity_int(self, formula, args, **kwargs):
