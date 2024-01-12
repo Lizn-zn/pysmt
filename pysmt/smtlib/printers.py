@@ -87,6 +87,7 @@ class SmtPrinter(TreeWalker):
     def walk_constant(self, formula, constant):
         self.write(constant)
 
+    def walk_complex(self, formula): return self.walk_nary(formula, "complex")
     def walk_and(self, formula): return self.walk_nary(formula, "and")
     def walk_or(self, formula): return self.walk_nary(formula, "or")
     def walk_not(self, formula): return self.walk_nary(formula, "not")
@@ -107,11 +108,18 @@ class SmtPrinter(TreeWalker):
     def walk_mod(self, formula): return self.walk_nary(formula, "mod")
     def walk_gcd(self, formula): return self.walk_nary(formula, "gcd")
     def walk_lcm(self, formula): return self.walk_nary(formula, "lcm")
+    def walk_prime(self, formula): return self.walk_nary(formula, "prime")
+    def walk_factorial(self, formula): return self.walk_nary(formula, "factorial")
+    def walk_binomial(self, formula): return self.walk_nary(formula, "binomial")
+    def walk_asin(self, formula): return self.walk_nary(formula, "asin")
+    def walk_acos(self, formula): return self.walk_nary(formula, "acos")
+    def walk_atan(self, formula): return self.walk_nary(formula, "atan")
     def walk_pow(self, formula): return self.walk_nary(formula, "pow")
     def walk_pi(self, formula): return self.walk_constant(formula, "pi")
     def walk_log(self, formula): return self.walk_nary(formula, "log")
     def walk_exp(self, formula): return self.walk_nary(formula, "exp")
     def walk_sin(self, formula): return self.walk_nary(formula, "sin")
+    def walk_cos(self, formula): return self.walk_nary(formula, "cos")
     def walk_bv_and(self, formula): return self.walk_nary(formula, "bvand")
     def walk_bv_or(self, formula): return self.walk_nary(formula, "bvor")
     def walk_bv_not(self, formula): return self.walk_nary(formula, "bvnot")
@@ -242,7 +250,7 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_charat(self,formula, **kwargs):
+    def walk_str_charat(self, formula, **kwargs):
         self.write("( str.at " )
         self.walk(formula.arg(0))
         self.write(" ")
@@ -250,7 +258,7 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_concat(self,formula, **kwargs):
+    def walk_str_concat(self, formula, **kwargs):
         self.write("( str.++ " )
         for arg in formula.args():
             self.walk(arg)
@@ -258,7 +266,7 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_contains(self,formula, **kwargs):
+    def walk_str_contains(self, formula, **kwargs):
         self.write("( str.contains " )
         self.walk(formula.arg(0))
         self.write(" ")
@@ -266,7 +274,7 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_indexof(self,formula, **kwargs):
+    def walk_str_indexof(self, formula, **kwargs):
         self.write("( str.indexof " )
         self.walk(formula.arg(0))
         self.write(" ")
@@ -276,7 +284,7 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_replace(self,formula, **kwargs):
+    def walk_str_replace(self, formula, **kwargs):
         self.write("( str.replace " )
         self.walk(formula.arg(0))
         self.write(" ")
@@ -286,7 +294,7 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_substr(self,formula, **kwargs):
+    def walk_str_substr(self, formula, **kwargs):
         self.write("( str.substr " )
         self.walk(formula.arg(0))
         self.write(" ")
@@ -296,7 +304,7 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_prefixof(self,formula, **kwargs):
+    def walk_str_prefixof(self, formula, **kwargs):
         self.write("( str.prefixof " )
         self.walk(formula.arg(0))
         self.write(" ")
@@ -304,7 +312,7 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_suffixof(self,formula, **kwargs):
+    def walk_str_suffixof(self, formula, **kwargs):
         self.write("( str.suffixof " )
         self.walk(formula.arg(0))
         self.write(" ")
@@ -312,13 +320,13 @@ class SmtPrinter(TreeWalker):
         self.write(")")
 
     @write_annotations
-    def walk_str_to_int(self,formula, **kwargs):
+    def walk_str_to_int(self, formula, **kwargs):
         self.write("( str.to.int " )
         self.walk(formula.arg(0))
         self.write(")")
 
     @write_annotations
-    def walk_int_to_str(self,formula, **kwargs):
+    def walk_int_to_str(self, formula, **kwargs):
         self.write("( int.to.str " )
         self.walk(formula.arg(0))
         self.write(")")

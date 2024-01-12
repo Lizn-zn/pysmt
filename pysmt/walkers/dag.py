@@ -46,7 +46,10 @@ class DagWalker(Walker):
         return
 
     def _get_children(self, formula):
-        return formula.args()
+        try:
+            return formula.args()
+        except AttributeError as e:
+            raise AttributeError(f"The definition of formula {formula} is missing")
 
     def _push_with_children_to_stack(self, formula, **kwargs):
         """Add children to the stack."""

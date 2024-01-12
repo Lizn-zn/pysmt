@@ -45,6 +45,9 @@ class IdentityDagWalker(DagWalker):
     def walk_int_constant(self, formula, args, **kwargs):
         return self.mgr.Int(formula.constant_value())
 
+    def walk_complex(self, formula, args, **kwargs):
+        return self.mgr.Complex(args)
+
     def walk_bool_constant(self, formula, args, **kwargs):
         return self.mgr.Bool(formula.constant_value())
 
@@ -100,11 +103,32 @@ class IdentityDagWalker(DagWalker):
     def walk_pow(self, formula, args, **kwargs):
         return self.mgr.Pow(args[0], args[1])
 
+    def walk_sin(self, formula, args, **kwargs):
+        return self.mgr.Sin(args[0])
+
+    def walk_cos(self, formula, args, **kwargs):
+        return self.mgr.Cos(args[0])
+
+    def walk_asin(self, formula, args, **kwargs):
+        return self.mgr.ASin(args[0])
+    
+    def walk_acos(self, formula, args, **kwargs):
+        return self.mgr.ACos(args[0])
+
+    def walk_atan(self, formula, args, **kwargs):
+        return self.mgr.ATan(args[0])
+
     def walk_gcd(self, formula, args, **kwargs):
         return self.mgr.Gcd(args)
 
     def walk_lcm(self, formula, args, **kwargs):
         return self.mgr.Lcm(args)
+
+    def walk_prime(self, formula, args, **kwargs):
+        return self.mgr.Prime(args[0])
+
+    def walk_factorial(self, formula, args, **kwargs):
+        return self.mgr.Factorial(args[0])
     
     def walk_mod(self, formula, args, **kwargs):
         return self.mgr.Modulo(args[0], args[1])

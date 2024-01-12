@@ -49,9 +49,12 @@ Our Modifications
 
 Our TODOs
 =====
+- [] CVC4 and msat will occur segment fault error
+- [] root-obj command for solvers
 - [] define-fun-rec for other engine (cvc4 and msat)
 - [] define-funs-rec for solvers
 - [] More operators support, e.g., pi and e
+- [] Functions to be implemented, e.g., GCD, LCM, Prime, Factorial,Binomial 
 
 
 Usage

@@ -183,9 +183,19 @@ class FormulaManager(object):
         """
         if len(params) == 0:
             return vname
-        assert len(params) == len(vname.symbol_type().param_types)
+        if len(params) != len(vname.symbol_type().param_types):
+            raise PysmtTypeError("Wrong number of arguments for function '%s'. Expected %d, got %d" % (vname, len(vname.symbol_type().param_types), len(params)))
+        new_params = []
+        for (tv, p) in zip(vname.symbol_type().param_types, params):
+            tp = self.env.stc.get_type(p)
+            if tp == types.INT and tv == types.REAL:
+                new_params.append(self.ToReal(p))
+            elif tp == types.REAL and tv == types.INT:
+                new_params.append(self.RealToInt(p))
+            else:
+                new_params.append(p)
         return self.create_node(node_type=op.FUNCTION,
-                                args=tuple(params),
+                                args=tuple(new_params),
                                 payload=vname)
 
     def Not(self, formula):
@@ -388,6 +398,11 @@ class FormulaManager(object):
         self.int_constants[value] = n
         return n
 
+    def Complex(self, real, image):
+        """ Creates an expression of the form: real + image*i """
+        return self.create_node(node_type=op.COMPLEX,
+                                args=(real, image))
+
     def String(self, value):
         """Return a constant of type STRING."""
         if value in self.string_constants:
@@ -533,16 +548,36 @@ class FormulaManager(object):
 
     def Abs(self, formula):
         """ Absolute value of a formula. """
-        cond = self.GE(formula, self.Real(0))
-        return self.Ite(cond, formula, self.Times(self.Real(-1), formula))
+        t = self.env.stc.get_type(formula)
+        if t == types.INT:
+            zero = self.Int(0)
+            neg_one = self.Int(-1)
+        else:
+            zero = self.Real(0)
+            neg_one = self.Real(-1)
+        cond = self.GE(formula, zero)
+        return self.Ite(cond, formula, self.Times(neg_one, formula))
+
+    def Sgn(self, formula):
+        """ Sign of a formula. """
+        t = self.env.stc.get_type(formula)
+        if t == types.INT:
+            zero, one, neg_one = self.Int(0), self.Int(1), self.Int(-1)
+        else:
+            zero, one, neg_one = self.Real(0), self.Real(1), self.Real(-1)
+        cond = self.GE(formula, zero)
+        return self.Ite(cond, one, neg_one)
     
-    def Logarithm(self, formula):
+    def Logarithm(self, *args):
         """ Returns the natural logarithm of the formula. """
-        return self.create_node(node_type=op.LOG,
-                                    args=(formula,))
+        if len(args) == 1: # default it log with base e
+            return self.create_node(node_type=op.LOG,
+                                        args=args)
+        elif len(args) == 2:
+            return self.Log_base(formula=args[1], base=args[0])
     
     def Log_base(self, formula, base=2):
-        return self.Div(self.Logarithm(formula), self.Logarithm(self.Real(base)))
+        return self.Div(self.Logarithm(formula), self.Logarithm(base))
     
     def Sqrt(self, formula):
         """ Returns the square root of the formula. """
@@ -655,6 +690,30 @@ class FormulaManager(object):
         return self.create_node(node_type=op.LCM,
                                 args=(self.RealToInt(left), self.RealToInt(right)))
 
+    def Prime(self, formula):
+        """Returns the encoding of the prime expression"""
+        return self.create_node(node_type=op.PRIME,
+                                args=(self.RealToInt(formula),))
+
+    def Even(self, formula):
+        """Returns the encoding of the even expression"""
+        return self.Equals(self.Modulo(formula, self.Int(2)), self.Int(0))
+
+    def Factorial(self, formula):
+        """Returns the encoding of the factorial expression"""
+        tp = self.env.stc.get_type(formula)
+        if tp == types.INT:
+            return self.create_node(node_type=op.FACTORIAL,
+                                    args=(formula,))
+        elif tp == types.REAL:
+            return self.create_node(node_type=op.FACTORIAL,
+                                    args=(self.RealToInt(formula),))
+    
+    def Binomial(self, left, right):
+        """Returns the encoding of the binomial expression"""
+        return self.create_node(node_type=op.BINOMIAL,
+                                args=(left, right))
+
     def Exp(self, formula):
         """ Creates an expression of the form: exp(formula) """
         return self.create_node(node_type=op.EXP,
@@ -664,6 +723,30 @@ class FormulaManager(object):
         """ Creates an expression of the form: sin(formula) """
         return self.create_node(node_type=op.SIN,
                                 args=(formula,))
+    
+    def Cos(self, formula):
+        """ Creates an expression of the form: cos(formula) """
+        return self.create_node(node_type=op.COS,
+                                args=(formula,))
+
+    def ASin(self, formula):
+        """ Creates an expression of the form: asin(formula) """
+        return self.create_node(node_type=op.ASIN,
+                                args=(formula,))
+    
+    def ACos(self, formula):
+        """ Creates an expression of the form: acos(formula) """
+        return self.create_node(node_type=op.ACOS,
+                                args=(formula,))
+
+    def ATan(self, formula):
+        """ Creates an expression of the form: atan(formula) """
+        return self.create_node(node_type=op.ATAN,
+                                args=(formula,))
+
+    def Tan(self, formula):
+        """ Creates an expression of the form: tan(formula) """
+        return self.Div(self.Sin(formula), self.Cos(formula))
 
     def PI(self):
         """ Creates an expression of the form: PI """

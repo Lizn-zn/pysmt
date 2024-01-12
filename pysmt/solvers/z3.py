@@ -809,7 +809,7 @@ class Z3Converter(Converter, DagWalker):
             new_args, sz = self._to_ast_array(new_args)
             z3.Z3_add_rec_def(self.ctx.ref(), z3func, sz, new_args, body)
         else:
-            z3func = self._z3_func_decl(str(func_name))
+            z3func = self._z3_func_decl(formula.function_name())
         z3term = z3.Z3_mk_app(self.ctx.ref(), z3func, sz, _args)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term

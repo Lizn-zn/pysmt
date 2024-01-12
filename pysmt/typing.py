@@ -78,6 +78,9 @@ class PySMTType(object):
 
     def is_int_type(self):
         return False
+    
+    def is_complex_type(self):
+        return False
 
     def is_bv_type(self, width=None):
         #pylint: disable=unused-argument
@@ -156,6 +159,14 @@ class _RealType(PySMTType):
     def is_real_type(self):
         return True
 
+class _ComplexType(PySMTType):
+    def __init__(self):
+        decl = _TypeDecl("Complex", 0)
+        PySMTType.__init__(self, decl=decl, args=None)
+
+    def is_complex_type(self):
+        return True
+    
 class _StringType(PySMTType):
     def __init__(self):
         decl = _TypeDecl("String", 0)
@@ -381,6 +392,7 @@ class PartialType(object):
 BOOL = _BoolType()
 REAL = _RealType()
 INT =  _IntType()
+COMPLEX = _ComplexType()
 STRING = _StringType()
 PYSMT_TYPES = frozenset([BOOL, REAL, INT])
 
@@ -400,6 +412,7 @@ class TypeManager(object):
         self._bool = None
         self._real = None
         self._int = None
+        self._complex = None
         self._string = None
         #
         self.load_global_types()
@@ -423,6 +436,9 @@ class TypeManager(object):
 
     def INT(self):
         return self._int
+
+    def COMPLEX(self):
+        return self._complex
 
     def STRING(self):
         return self._string

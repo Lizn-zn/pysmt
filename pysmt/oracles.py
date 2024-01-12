@@ -277,19 +277,12 @@ class TheoryOracle(walkers.DagWalker):
         theory_out = theory_out.set_difference_logic(False)
         return theory_out
 
-    def walk_pow(self, formula, args, **kwargs):
+    @walkers.handles([op.MOD, op.GCD, op.LCM, op.PRIME, op.FACTORIAL, op.BINOMIAL])
+    def walk_nonlinear(self, formula, args, **kwargs):
         return args[0].set_linear(False)
     
-    def walk_mod(self, formula, args, **kwargs):
-        return args[0].set_linear(False)
-
-    def walk_gcd(self, formula, args, **kwargs):
-        return args[0].set_linear(False)
-
-    def walk_lcm(self, formula, args, **kwargs):
-        return args[0].set_linear(False)
-    
-    def walk_log(self, formula, args, **kwargs):
+    @walkers.handles([op.POW])
+    def walk_expt(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         """Extends the Theory with NIRA."""
         theory_out = args[0].set_nira() # This makes a copy of args[0]
@@ -304,7 +297,7 @@ class TheoryOracle(walkers.DagWalker):
         assert not theory_out.integer_difference
         return theory_out
 
-    @walkers.handles([op.EXP, op.SIN, op.PI])
+    @walkers.handles([op.EXP, op.SIN, op.PI, op.COS, op.ASIN, op.ACOS, op.ATAN])
     def walk_transcendental(selfself, formula, args, **kwargs):
         theory_out = Theory(transcendental=True)
         for t in args:

@@ -24,7 +24,7 @@ these operators.
 from itertools import chain
 
 
-ALL_TYPES = list(range(0,76))
+ALL_TYPES = list(range(0,84))
 
 (
 FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF, # Boolean Logic (0-6)
@@ -86,10 +86,20 @@ ROUND,                                      # Rounding (70)
 
 EXP,                                        # Exponential (71)
 SIN,                                        # Sine (72)
-PI,                                         # Pi (73)
+COS,                                        # Cosine (73)
+PI,                                         # Pi (74)
 
-GCD,                                        # Greatest Common Divisor (74)
-LCM,                                        # Least Common Multiple (75)
+GCD,                                        # Greatest Common Divisor (75)
+LCM,                                        # Least Common Multiple (76)
+PRIME,                                      # Prime (77)
+FACTORIAL,                                  # Factorial (78)
+BINOMIAL,                                   # Binomial (79)
+
+ASIN,                                       # Arc Sine (80)
+ACOS,                                       # Arc Cosine (81)
+ATAN,                                       # Arc Tangent (82)
+
+COMPLEX,                                    # Complex Number (83)
 ) = ALL_TYPES
 
 QUANTIFIERS = frozenset([FORALL, EXISTS])
@@ -122,11 +132,16 @@ STR_OPERATORS = frozenset([STR_LENGTH, STR_CONCAT, STR_INDEXOF, STR_REPLACE,
                            STR_SUBSTR, STR_CHARAT, STR_TO_INT, INT_TO_STR,])
 
 IRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, BV_TONATURAL,
-                          REALTOINT, LOG, MOD, INTDIV, ROUND, EXP, SIN, PI, GCD, LCM])
+                          REALTOINT, LOG, MOD, INTDIV, ROUND, EXP, SIN, COS, 
+                          PI, GCD, LCM, PRIME, FACTORIAL, BINOMIAL, ASIN, ACOS, ATAN])
+
+CRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, BV_TONATURAL,
+                          REALTOINT, LOG, MOD, INTDIV, ROUND, EXP, SIN, COS, 
+                          PI, GCD, LCM, PRIME, FACTORIAL, BINOMIAL, ASIN, ACOS, ATAN, COMPLEX])
 
 ARRAY_OPERATORS = frozenset([ARRAY_SELECT, ARRAY_STORE, ARRAY_VALUE])
 
-THEORY_OPERATORS = IRA_OPERATORS | BV_OPERATORS | ARRAY_OPERATORS | STR_OPERATORS
+THEORY_OPERATORS = IRA_OPERATORS | BV_OPERATORS | ARRAY_OPERATORS | STR_OPERATORS | CRA_OPERATORS
 
 CUSTOM_NODE_TYPES = []
 
@@ -242,7 +257,15 @@ __OP_STR__ = {
     ROUND: "ROUND",
     EXP: "EXP",
     SIN: "SIN",
+    COS: "COS",
     PI: "PI",
     GCD: "GCD",
     LCM: "LCM",
+    PRIME: "PRIME",
+    FACTORIAL: "Factorial",
+    BINOMIAL: "Binomial",
+    ASIN: "Asin",
+    ACOS: "Acos",
+    ATAN: "Atan", 
+    COMPLEX: "Complex",
 }

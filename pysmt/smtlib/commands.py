@@ -53,6 +53,8 @@ RESET_ASSERTIONS='reset-assertions'
 SET_INFO='set-info'
 SET_LOGIC='set-logic'
 SET_OPTION='set-option'
+#
+DEFINE_CONST='define-const'
 
 #
 
@@ -98,4 +100,9 @@ SMT_LIB_2_5_OMT = SMT_LIB_2_5 + [
     LOAD_OBJECTIVE_MODEL,
 ]
 
-ALL_COMMANDS = SMT_LIB_2_5_OMT
+ADDITIONS = [
+    DEFINE_CONST,
+]
+
+
+ALL_COMMANDS = SMT_LIB_2_5_OMT + ADDITIONS

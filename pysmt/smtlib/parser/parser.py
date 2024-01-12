@@ -396,6 +396,7 @@ class SmtLibParser(object):
                             # add by zenan
                             '^': self._operator_adapter(mgr.Pow),
                             'div': self._operator_adapter(self._intdivision),
+                            'mul':self._operator_adapter(self.Times),
                             'round': self._operator_adapter(mgr.Round),
                             'to_int':self._operator_adapter(mgr.RealToInt),
                             'abs': self._operator_adapter(mgr.Abs),
@@ -405,17 +406,31 @@ class SmtLibParser(object):
                             'ceiling': self._operator_adapter(mgr.Ceil),
                             'floor': self._operator_adapter(mgr.Floor),
                             'log': self._operator_adapter(mgr.Logarithm),
-                            'log2': self._operator_adapter(lambda formula:mgr.Log_base(formula, base=2)),
+                            'log2': self._operator_adapter(lambda formula:mgr.Log_base(formula, base=mgr.Int(2))),
                             'max': self._operator_adapter(mgr.Max),
                             'min': self._operator_adapter(mgr.Min),
                             'mod': self._operator_adapter(mgr.Modulo),
                             'sqrt': self._operator_adapter(mgr.Sqrt),
-                            'square': self._operator_adapter(lambda formula:mgr.Pow(formula, exponent=mgr.Real(2))),
+                            'square': self._operator_adapter(lambda formula:mgr.Pow(formula, exponent=mgr.Int(2))),
                             'if': self._operator_adapter(self.Ite), 
                             'Ite': self._operator_adapter(self.Ite), 
-                            'dec': self._operator_adapter(lambda formula:self._minus_or_uminus(formula, mgr.Real(1))),
+                            'dec': self._operator_adapter(lambda formula:self._minus_or_uminus(formula, mgr.Int(1))),
+                            'inc': self._operator_adapter(lambda formula:self.Plus(formula, mgr.Int(1))),
                             'gcd': self._operator_adapter(mgr.GCD),
                             'lcm': self._operator_adapter(mgr.LCM),
+                            'prime': self._operator_adapter(mgr.Prime),
+                            'even': self._operator_adapter(mgr.Even),
+                            'factorial': self._operator_adapter(self._factorial),
+                            'fact': self._operator_adapter(self._factorial),
+                            'binomial': self._operator_adapter(mgr.Binomial),
+                            'choose': self._operator_adapter(mgr.Binomial),
+                            'sin': self._operator_adapter(mgr.Sin),
+                            'cos': self._operator_adapter(mgr.Cos),
+                            'tan': self._operator_adapter(mgr.Tan),
+                            'asin': self._operator_adapter(mgr.ASin),
+                            'acos': self._operator_adapter(mgr.ACos),
+                            'atan': self._operator_adapter(mgr.ATan),
+                            'complex': self._operator_adapter(mgr.Complex),
                             ####
                             'ite':self._operator_adapter(self.Ite),
                             'distinct':self._operator_adapter(self.AllDifferent),
@@ -511,6 +526,8 @@ class SmtLibParser(object):
                          smtcmd.MINMAX: self._cmd_minmax_maxmin_obj,
                          smtcmd.MAXMIN: self._cmd_minmax_maxmin_obj,
                          smtcmd.LOAD_OBJECTIVE_MODEL: self._cmd_load_objective_model,
+                         # addition 
+                         smtcmd.DEFINE_CONST: self._cmd_declare_const,
                      }
 
     def _reset(self):
@@ -707,6 +724,17 @@ class SmtLibParser(object):
             for i in range(1, len(args)-1):
                 res = mgr.IntDiv(res, args[i+1])
             return res
+        
+    def _factorial(self, *args):
+        """Utility function that builds a factorial"""
+        mgr = self.env.formula_manager
+        fact = self.cache.get("factorial")
+        if fact:
+            return fact(*args)
+        elif len(args) == 1:
+            return mgr.Factorial(args[0])
+        else:
+            raise PysmtSyntaxError("Factorial is only supported for one term: %s" %args)
 
     def _get_var(self, name, type_name):
         """Returns the PySMT variable corresponding to a declaration"""
@@ -1145,6 +1173,8 @@ class SmtLibParser(object):
             res = self.env.type_manager.INT()
         elif var == "Real":
             res = self.env.type_manager.REAL()
+        elif var == "Complex":
+            res = self.env.type_manager.COMPLEX()
         elif var == "String":
             res = self.env.type_manager.STRING()
         else:

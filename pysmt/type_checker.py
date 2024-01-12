@@ -25,7 +25,7 @@ reasoning about the type of formulae.
 import pysmt.walkers as walkers
 import pysmt.operators as op
 
-from pysmt.typing import BOOL, REAL, INT, BVType, ArrayType, STRING
+from pysmt.typing import BOOL, REAL, INT, BVType, ArrayType, STRING, COMPLEX
 from pysmt.exceptions import PysmtTypeError
 
 
@@ -79,10 +79,12 @@ class SimpleTypeChecker(walkers.DagWalker):
         rval = self.walk_type_to_type(formula, args, REAL, REAL)
         if rval is None:
             rval = self.walk_type_to_type(formula, args, INT, INT)
+        if rval is None:
+            rval = self.walk_type_to_type(formula, args, COMPLEX, COMPLEX)
         return rval
 
-    @walkers.handles(op.ROUND, op.REALTOINT)
-    def walk_realtoint(self, formula, args, **kwargs):
+    @walkers.handles(op.ROUND, op.REALTOINT, op.PRIME, op.FACTORIAL)
+    def walk_toint(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         arg = args[0]
         if arg.is_real_type():
@@ -92,7 +94,7 @@ class SimpleTypeChecker(walkers.DagWalker):
         else:
             return None
 
-    @walkers.handles(op.PI, op.SIN, op.EXP)
+    @walkers.handles(op.PI, op.SIN, op.COS, op.EXP, op.ASIN, op.ACOS, op.ATAN)
     def walk_nra(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         return REAL
@@ -239,6 +241,11 @@ class SimpleTypeChecker(walkers.DagWalker):
         assert len(args) == 0
         return REAL
 
+    def walk_complex(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        assert len(args) == 2
+        return COMPLEX
+
     @walkers.handles(op.INT_CONSTANT)
     def walk_identity_int(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
@@ -353,12 +360,14 @@ class SimpleTypeChecker(walkers.DagWalker):
             return None
         return REAL
     
-    @walkers.handles(op.MOD, op.GCD, op.LCM)
+    @walkers.handles(op.MOD, op.GCD, op.LCM, op.BINOMIAL)
     def walk_intop(self, formula, args, **kwargs):
         if args[0].is_int_type() and \
                     args[1].is_int_type():
             return INT
         return None
+    
+
 
 # EOC SimpleTypeChecker
 

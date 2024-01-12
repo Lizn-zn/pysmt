@@ -103,6 +103,13 @@ class HRPrinter(TreeWalker):
             "The type was " + str(type(formula.constant_value()))
         self.write(str(formula.constant_value()))
 
+    def walk_complex(self, formula):
+        self.write("(")
+        yield formula.arg(0)
+        self.write(" + ")
+        yield formula.arg(1)
+        self.write("*I)")
+
     def walk_bool_constant(self, formula):
         if formula.constant_value():
             self.write("True")
@@ -204,6 +211,23 @@ class HRPrinter(TreeWalker):
         yield formula.args()[-1]
         self.write(")")
     
+    def walk_prime(self, formula):
+        self.write("prime(")
+        yield formula.arg(0)
+        self.write(")")
+    
+    def walk_factorial(self, formula):
+        self.write("fact(")
+        yield formula.arg(0)
+        self.write(")")
+
+    def walk_binomial(self, formula):
+        self.write("binomial(")
+        yield formula.arg(0)
+        self.write(", ")
+        yield formula.arg(1)
+        self.write(")")
+    
     def walk_pi(self, formula):
         self.write("pi")
 
@@ -216,7 +240,27 @@ class HRPrinter(TreeWalker):
         self.write("sin(")
         yield formula.arg(0)
         self.write(")")
-        
+
+    def walk_cos(self, formula):
+        self.write("cos(")
+        yield formula.arg(0)
+        self.write(")")
+
+    def walk_asin(self, formula):
+        self.write("asin(")
+        yield formula.arg(0)
+        self.write(")")
+
+    def walk_acos(self, formula):
+        self.write("acos(")
+        yield formula.arg(0)
+        self.write(")")
+
+    def walk_atan(self, formula):
+        self.write("atan(")
+        yield formula.arg(0)
+        self.write(")")
+
     def walk_str_constant(self, formula):
         assert (type(formula.constant_value()) == str ), \
             "The type was " + str(type(formula.constant_value()))
@@ -391,7 +435,7 @@ class HRSerializer(object):
             p = self.PrinterClass(buf)
         else:
             p = printer(buf)
-
+        
         p.printer(formula, threshold)
         res = buf.getvalue()
         buf.close()
