@@ -715,8 +715,8 @@ class SmtLibParser(object):
         elif len(args) == 2:
             left, right = args
             if left.is_constant() and right.is_constant():
-                return mgr.RealToInt(Fraction(left.constant_value()) /
-                                Fraction(right.constant_value()))
+                return mgr.Int(int(Fraction(left.constant_value()) /
+                                Fraction(right.constant_value())))
             else:
                 return mgr.IntDiv(left, right)
         else:

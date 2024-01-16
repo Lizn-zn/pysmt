@@ -56,6 +56,34 @@ class HRPrinter(TreeWalker):
         yield args[-1]
         self.write(")")
 
+    def make_term(self, s):
+        if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+            self.write("(")
+            yield s
+            self.write(")")
+        else:
+            yield s
+    
+    def walk_term(self, formula, ops):
+        self.write("(")
+        args = formula.args()
+        for s in args[:-1]:
+            if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+                self.write("(")
+                yield s
+                self.write(")")
+            else:
+                yield s
+            self.write(ops)
+        s = args[-1]
+        if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+            self.write("(")
+            yield s
+            self.write(")")
+        else:
+            yield s
+        self.write(")")
+
     def walk_quantifier(self, op_symbol, var_sep, sep, formula):
         if len(formula.quantifier_vars()) > 0:
             self.write("(")
@@ -217,7 +245,7 @@ class HRPrinter(TreeWalker):
         self.write(")")
     
     def walk_factorial(self, formula):
-        self.write("fact(")
+        self.write("factorial(")
         yield formula.arg(0)
         self.write(")")
 
@@ -384,7 +412,7 @@ class HRPrinter(TreeWalker):
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")
     def walk_intdiv(self, formula): return self.walk_nary(formula, " // ")
-    def walk_pow(self, formula): return self.walk_nary(formula, " ^ ")
+    def walk_pow(self, formula): return self.walk_term(formula, " ^ ")
     def walk_mod(self, formula): return self.walk_nary(formula, " mod ")
     def walk_iff(self, formula): return self.walk_nary(formula, " <-> ")
     def walk_implies(self, formula): return self.walk_nary(formula, " -> ")

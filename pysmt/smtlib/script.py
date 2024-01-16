@@ -184,6 +184,8 @@ class SmtLibCommand(namedtuple('SmtLibCommand', ['name', 'args'])):
                                                 rtype.as_smtlib(funstyle=False)))
             printer.printer(expr)
             outstream.write(")")
+        elif self.name == smtcmd.ECHO:
+            outstream.write("(%s %s)" % (self.name, str(self.args[0])))
         elif self.name in smtcmd.ALL_COMMANDS:
             raise NotImplementedError("'%s' is a valid SMT-LIB command "\
                                       "but it is currently not supported. "\

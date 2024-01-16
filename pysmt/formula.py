@@ -48,6 +48,7 @@ from pysmt.constants import (is_pysmt_fraction,
                              is_python_rational,
                              is_python_integer,
                              is_python_string,
+                             to_python_integer,
                              pysmt_fraction_from_rational,
                              pysmt_integer_from_integer)
 
@@ -241,7 +242,7 @@ class FormulaManager(object):
 
         Restriction:
          - Arguments must be all of the same type
-         - Arguments must be INT or REAL or COMPLEX
+         - Arguments must be INT or REAL
         """
         tuple_args = self._polymorph_args_to_tuple(args)
         if len(tuple_args) == 0:
@@ -260,11 +261,7 @@ class FormulaManager(object):
         """
         # if not exponent.is_constant():
             # raise PysmtValueError("The exponent of POW must be a constant.", exponent)
-        # if base.is_constant():
-        if base.is_int_constant() and exponent.is_int_constant():
-            val = base.constant_value() ** exponent.constant_value()
-            if val < 2^32: # set an upper bound for pow simplification
-                return self.Int(val)                
+        # if base.is_constant():              
         return self.create_node(node_type=op.POW, args=(base, exponent))
 
     def Div(self, left, right):
@@ -302,6 +299,12 @@ class FormulaManager(object):
 
         For the boolean case use Iff
         """
+        left_type = self.env.stc.get_type(left)
+        right_type = self.env.stc.get_type(right)
+        if left_type == types.REAL and right_type == types.INT:
+            right = self.ToReal(right)
+        elif left_type == types.INT and right_type == types.REAL:
+            left = self.ToReal(left)
         return self.create_node(node_type=op.EQUALS,
                                 args=(left, right))
 
@@ -389,6 +392,8 @@ class FormulaManager(object):
             val = value
         elif is_python_integer(value):
             val = pysmt_integer_from_integer(value)
+        elif is_python_rational(value) or is_pysmt_fraction(value):
+            val = pysmt_integer_from_integer(to_python_integer(value))
         else:
             raise PysmtTypeError("Invalid type in constant. The type was:" + \
                                  str(type(value)))
@@ -399,7 +404,7 @@ class FormulaManager(object):
         return n
 
     def Complex(self, real, image):
-        """ Creates an expression of the form: real + image*i """
+        """Return a constant of type COMPLEX."""
         return self.create_node(node_type=op.COMPLEX,
                                 args=(real, image))
 

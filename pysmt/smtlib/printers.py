@@ -76,7 +76,7 @@ class SmtPrinter(TreeWalker):
         self.write("(%s" % operator)
         for s in formula.args():
             self.write(" ")
-            if s.is_constant() and s.constant_value() == int(s.constant_value()): # handle int for simplification
+            if s.is_real_constant() and s.constant_value() == int(s.constant_value()): # handle int for simplification
                 s = self.mgr.Int(int(s.constant_value()))
             yield s
         self.write(")")

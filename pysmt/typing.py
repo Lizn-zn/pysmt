@@ -426,7 +426,6 @@ class TypeManager(object):
         self._bool = BOOL
         self._real = REAL
         self._int = INT
-        self._complex = COMPLEX
         self._string = STRING
 
     def BOOL(self):

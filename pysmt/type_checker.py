@@ -73,7 +73,7 @@ class SimpleTypeChecker(walkers.DagWalker):
         #pylint: disable=unused-argument
         return self.walk_type_to_type(formula, args, REAL, REAL)
 
-    @walkers.handles(op.PLUS, op.MINUS, op.TIMES, op.DIV, op.INTDIV)
+    @walkers.handles(op.PLUS, op.MINUS, op.TIMES, op.DIV)
     def walk_realint_to_realint(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         rval = self.walk_type_to_type(formula, args, REAL, REAL)
@@ -83,18 +83,32 @@ class SimpleTypeChecker(walkers.DagWalker):
             rval = self.walk_type_to_type(formula, args, COMPLEX, COMPLEX)
         return rval
 
-    @walkers.handles(op.ROUND, op.REALTOINT, op.PRIME, op.FACTORIAL)
-    def walk_toint(self, formula, args, **kwargs):
+    @walkers.handles(op.POW)
+    def walk_intonly_or_real(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        for x in args:
+            if x != INT and x != REAL:
+                return None
+        rval = self.walk_type_to_type(formula, args, INT, INT)
+        if rval is None:
+            return REAL 
+        return rval
+
+    @walkers.handles(op.INTDIV, op.MOD, op.GCD, op.LCM, op.BINOMIAL, op.PRIME, op.FACTORIAL)
+    def walk_int_to_int(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        return self.walk_type_to_type(formula, args, INT, INT)
+
+    @walkers.handles(op.ROUND, op.REALTOINT)
+    def walk_real_to_int(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         arg = args[0]
         if arg.is_real_type():
             return INT
-        elif arg.is_int_type():
-            return INT
         else:
             return None
 
-    @walkers.handles(op.PI, op.SIN, op.COS, op.EXP, op.ASIN, op.ACOS, op.ATAN)
+    @walkers.handles(op.PI, op.LOG, op.SIN, op.COS, op.EXP, op.ASIN, op.ACOS, op.ATAN)
     def walk_nra(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         return REAL
@@ -244,8 +258,7 @@ class SimpleTypeChecker(walkers.DagWalker):
     def walk_complex(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         assert len(args) == 2
-        return REAL
-        # return COMPLEX
+        return COMPLEX
 
     @walkers.handles(op.INT_CONSTANT)
     def walk_identity_int(self, formula, args, **kwargs):
@@ -346,29 +359,7 @@ class SimpleTypeChecker(walkers.DagWalker):
             elif i % 2 == 1 and c != default_type:
                 return None
         return ArrayType(idx_type, default_type)
-
-    @walkers.handles(op.POW)
-    def walk_pow(self, formula, args, **kwargs):
-        # zenan: remove here
-        # if args[0] != args[1]:
-            # return None
-        return REAL
     
-    @walkers.handles(op.LOG)
-    def walk_log(self, formula, args, **kwargs):
-        # zenan: remove here
-        if len(args) != 1:
-            return None
-        return REAL
-    
-    @walkers.handles(op.MOD, op.GCD, op.LCM, op.BINOMIAL)
-    def walk_intop(self, formula, args, **kwargs):
-        if args[0].is_int_type() and \
-                    args[1].is_int_type():
-            return INT
-        return None
-    
-
 
 # EOC SimpleTypeChecker
 
