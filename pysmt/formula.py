@@ -586,7 +586,11 @@ class FormulaManager(object):
     
     def Sqrt(self, formula):
         """ Returns the square root of the formula. """
-        return self.Pow(formula, self.Real(0.5))
+        return self.Pow(formula, self.Real((1,2)))
+    
+    def Cbrt(self, formula):
+        """ Returns the square root of the formula. """
+        return self.Pow(formula, self.Real((1,3))) # this is 1/3
 
     def AtMostOne(self, *args):
         """ At most one of the bool expressions can be true at anytime.
@@ -756,6 +760,10 @@ class FormulaManager(object):
     def PI(self):
         """ Creates an expression of the form: PI """
         return self.create_node(node_type=op.PI, args=())
+
+    def E(self):
+        """ Creates an expression of the form: e """
+        return self.Real(2.71828182846)
 
     def EqualsOrIff(self, left, right):
         """Returns Equals() or Iff() depending on the type of the arguments.

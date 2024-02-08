@@ -214,9 +214,9 @@ class HRPrinter(TreeWalker):
         # self.write(")")
 
     def walk_round(self, formula):
-        # self.write("RealToInt(")
+        self.write("round(")
         yield formula.arg(0)
-        # self.write(")")
+        self.write(")")
         
     def walk_log(self, formula):
         self.write("log(")

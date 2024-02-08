@@ -398,10 +398,11 @@ class SmtLibParser(object):
                             'div': self._operator_adapter(self._intdivision),
                             'mul':self._operator_adapter(self.Times),
                             'round': self._operator_adapter(mgr.Round),
-                            'to_int':self._operator_adapter(mgr.RealToInt),
+                            'to_int':self._operator_adapter(mgr.Round),
                             'abs': self._operator_adapter(mgr.Abs),
                             'expt': self._operator_adapter(mgr.Pow),
                             'power': self._operator_adapter(mgr.Pow),
+                            'exp': self._operator_adapter(lambda formula:mgr.Pow(base=mgr.E(), exponent=formula)),
                             'ceil': self._operator_adapter(mgr.Ceil),
                             'ceiling': self._operator_adapter(mgr.Ceil),
                             'floor': self._operator_adapter(mgr.Floor),
@@ -411,6 +412,7 @@ class SmtLibParser(object):
                             'min': self._operator_adapter(mgr.Min),
                             'mod': self._operator_adapter(mgr.Modulo),
                             'sqrt': self._operator_adapter(mgr.Sqrt),
+                            'cbrt': self._operator_adapter(mgr.Cbrt),
                             'square': self._operator_adapter(lambda formula:mgr.Pow(formula, exponent=mgr.Int(2))),
                             'if': self._operator_adapter(self.Ite), 
                             'Ite': self._operator_adapter(self.Ite), 
@@ -486,7 +488,7 @@ class SmtLibParser(object):
                             }
         # pre-defined constant
         self.constants = {'pi': mgr.PI(), 
-                        #   'e': mgr.Real(2.71828), 
+                          'e': mgr.E(), 
                          }
         # Command tokens
         self.commands = {smtcmd.ASSERT : self._cmd_assert,
@@ -1234,7 +1236,10 @@ class SmtLibParser(object):
         while True:
             try:
                 current = self.get_expression(tokens)
-                res.append(current)
+                if current:
+                    res.append(current)
+                else:
+                    raise PysmtTypeError("Unexpected end of stream in %s command." %current)
             except PysmtSyntaxError:
                 return res
 
@@ -1487,9 +1492,13 @@ class SmtLibParser(object):
             ebody_type = rtype
         # Check that ebody has the right type
         if ebody_type != rtype:
-            raise PysmtSyntaxError("Typyng error in define-fun command. "
-                                   "The expected type is %s, but the detected "
-                                   "expression type is %s" % (rtype, ebody_type))
+            # raise PysmtSyntaxError("Typyng error in define-fun command. "
+                                #    "The expected type is %s, but the detected "
+                                #    "expression type is %s" % (rtype, ebody_type))
+            warn("Typing error in define-fun command. "
+                            "The expected type is %s, but the detected "
+                            "expression type is %s" % (rtype, ebody_type))
+            rtype = ebody_type
 
         #Discard parameters
         for x in bindings:
