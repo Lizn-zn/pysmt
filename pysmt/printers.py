@@ -189,14 +189,30 @@ class HRPrinter(TreeWalker):
         self.write("%d)" % formula.bv_extend_step())
 
     def walk_ite(self, formula):
-        self.write("(")
-        yield formula.arg(0)
-        self.write(" ? ")
-        yield formula.arg(1)
-        self.write(" : ")
-        yield formula.arg(2)
-        self.write(")")
-
+        type = self.env.stc.get_type(formula)
+        if type.is_bool_type():
+            self.write("ITE(")
+            yield formula.arg(0)
+            self.write(",")
+            yield formula.arg(1)
+            self.write(",")
+            yield formula.arg(2)
+            self.write(")")
+        else:
+            self.write("Piecewise(")
+            self.write("(")
+            yield formula.arg(1)
+            self.write(",")
+            yield formula.arg(0)
+            self.write("),(")
+            yield formula.arg(2)
+            self.write(",")
+            self.write("Not(")
+            yield formula.arg(0)
+            self.write(")")
+            self.write(")")
+            self.write(")")
+            
     def walk_forall(self, formula):
         return self.walk_quantifier("forall ", ", ", " . ", formula)
 
