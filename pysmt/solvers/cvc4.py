@@ -301,6 +301,9 @@ class CVC4Converter(Converter, DagWalker):
 
     def walk_ite(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.ITE, args[0], args[1], args[2])
+    
+    def walk_numer_ite(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.ITE, args[0], args[1], args[2])
 
     def walk_real_constant(self, formula, **kwargs):
         frac = formula.constant_value()
