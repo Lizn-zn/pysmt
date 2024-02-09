@@ -1029,7 +1029,7 @@ class MSatConverter(Converter, DagWalker):
     def walk_pow(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_pow(self.msat_env(),
                                     args[0], args[1])
-
+        
     def walk_exp(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_exp(self.msat_env(), args[0])
 

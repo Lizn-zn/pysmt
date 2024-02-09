@@ -74,6 +74,9 @@ class IdentityDagWalker(DagWalker):
 
     def walk_ite(self, formula, args, **kwargs):
         return self.mgr.Ite(args[0], args[1], args[2])
+    
+    def walk_numer_ite(self, formula, args, **kwargs):
+        return self.mgr.Ite(args[0], args[1], args[2])
 
     def walk_le(self, formula, args, **kwargs):
         return self.mgr.LE(args[0], args[1])
@@ -119,10 +122,10 @@ class IdentityDagWalker(DagWalker):
         return self.mgr.ATan(args[0])
 
     def walk_gcd(self, formula, args, **kwargs):
-        return self.mgr.Gcd(args)
+        return self.mgr.GCD(args[0], args[1])
 
     def walk_lcm(self, formula, args, **kwargs):
-        return self.mgr.Lcm(args)
+        return self.mgr.LCM(args[0], args[1])
 
     def walk_prime(self, formula, args, **kwargs):
         return self.mgr.Prime(args[0])

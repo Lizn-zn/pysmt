@@ -24,7 +24,7 @@ these operators.
 from itertools import chain
 
 
-ALL_TYPES = list(range(0,84))
+ALL_TYPES = list(range(0,85))
 
 (
 FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF, # Boolean Logic (0-6)
@@ -33,73 +33,74 @@ REAL_CONSTANT, BOOL_CONSTANT, INT_CONSTANT, STR_CONSTANT, # Constants (9-12)
 PLUS, MINUS, TIMES,                         # LIA/LRA operators (13-15)
 LE, LT, EQUALS,                             # LIA/LRA relations (16-18)
 ITE,                                        # Term-ite (19)
-TOREAL,                                     # LIRA toreal() function (20)
+NUMER_ITE,                                  # Numerical-ite (20)
+TOREAL,                                     # LIRA toreal() function (21)
 #
 # MG: FLOOR? INT_MOD_CONGR?
 #
 # BV
-BV_CONSTANT,                                # Bit-Vector constant (21)
-BV_NOT, BV_AND, BV_OR, BV_XOR,              # Logical Operators on Bit (22-25)
-BV_CONCAT,                                  # BV Concatenation (26)
-BV_EXTRACT,                                 # BV sub-vector extraction (27)
-BV_ULT, BV_ULE,                             # Unsigned Comparison (28-29)
-BV_NEG, BV_ADD, BV_SUB,                     # Basic arithmetic (30-32)
-BV_MUL, BV_UDIV, BV_UREM,                   # Division/Multiplication (33-35)
-BV_LSHL, BV_LSHR,                           # Shifts (36-37)
-BV_ROL, BV_ROR,                             # Rotation (38-39)
-BV_ZEXT, BV_SEXT,                           # Extension (40-41)
-BV_SLT, BV_SLE,                             # Signed Comparison (42-43)
+BV_CONSTANT,                                # Bit-Vector constant (22)
+BV_NOT, BV_AND, BV_OR, BV_XOR,              # Logical Operators on Bit (23-26)
+BV_CONCAT,                                  # BV Concatenation (27)
+BV_EXTRACT,                                 # BV sub-vector extraction (28)
+BV_ULT, BV_ULE,                             # Unsigned Comparison (29-30)
+BV_NEG, BV_ADD, BV_SUB,                     # Basic arithmetic (31-33)
+BV_MUL, BV_UDIV, BV_UREM,                   # Division/Multiplication (34-36)
+BV_LSHL, BV_LSHR,                           # Shifts (37-38)
+BV_ROL, BV_ROR,                             # Rotation (39-40)
+BV_ZEXT, BV_SEXT,                           # Extension (41-42)
+BV_SLT, BV_SLE,                             # Signed Comparison (43-44)
 BV_COMP,                                    # Returns 1_1 if the arguments are
-                                            # equal otherwise it returns 0_1 (44)
-BV_SDIV, BV_SREM,                           # Signed Division and Reminder(45-46)
-BV_ASHR,                                    # Arithmetic shift right (47)
+                                            # equal otherwise it returns 0_1 (45)
+BV_SDIV, BV_SREM,                           # Signed Division and Reminder(46-47)
+BV_ASHR,                                    # Arithmetic shift right (48)
 #
 # STRINGS
 #
-STR_LENGTH,                                 # Length (48)
-STR_CONCAT,                                 # Concat (49)
-STR_CONTAINS,                               # Contains (50)
-STR_INDEXOF,                                # IndexOf (51)
-STR_REPLACE,                                # Replace (52)
-STR_SUBSTR,                                 # Sub String (53)
-STR_PREFIXOF,                               # Prefix (54)
-STR_SUFFIXOF,                               # Suffix (55)
-STR_TO_INT,                                 # atoi (56)
-INT_TO_STR,                                 # itoa (57)
-STR_CHARAT,                                 # Char at an index (58)
+STR_LENGTH,                                 # Length (49)
+STR_CONCAT,                                 # Concat (50)
+STR_CONTAINS,                               # Contains (51)
+STR_INDEXOF,                                # IndexOf (52)
+STR_REPLACE,                                # Replace (53)
+STR_SUBSTR,                                 # Sub String (54)
+STR_PREFIXOF,                               # Prefix (55)
+STR_SUFFIXOF,                               # Suffix (56)
+STR_TO_INT,                                 # atoi (57)
+INT_TO_STR,                                 # itoa (58)
+STR_CHARAT,                                 # Char at an index (59)
 #
 # ARRAYS
 #
-ARRAY_SELECT,                               # Array Select (59)
-ARRAY_STORE,                                # Array Store (60)
-ARRAY_VALUE,                                # Array Value (61)
+ARRAY_SELECT,                               # Array Select (60)
+ARRAY_STORE,                                # Array Store (61)
+ARRAY_VALUE,                                # Array Value (62)
 
-DIV,                                        # Arithmetic Division (62)
-POW,                                        # Arithmetic Power (63)
-ALGEBRAIC_CONSTANT,                         # Algebraic Number (64)
-BV_TONATURAL,                               # BV to Natural Conversion (65)
-REALTOINT,                                  # Real to Integer Conversion (66)
-LOG,                                        # Logarithm (67)
-MOD,                                        # Modulo (68)
-INTDIV,                                     # Integer Division (69)
-ROUND,                                      # Rounding (70)
+DIV,                                        # Arithmetic Division (63)
+POW,                                        # Arithmetic Power (64)
+ALGEBRAIC_CONSTANT,                         # Algebraic Number (65)
+BV_TONATURAL,                               # BV to Natural Conversion (66)
+REALTOINT,                                  # Real to Integer Conversion (67)
+LOG,                                        # Logarithm (68)
+MOD,                                        # Modulo (69)
+INTDIV,                                     # Integer Division (70)
+ROUND,                                      # Rounding (71)
 
-EXP,                                        # Exponential (71)
-SIN,                                        # Sine (72)
-COS,                                        # Cosine (73)
-PI,                                         # Pi (74)
+EXP,                                        # Exponential (72)
+SIN,                                        # Sine (73)
+COS,                                        # Cosine (74)
+PI,                                         # Pi (75)
 
-GCD,                                        # Greatest Common Divisor (75)
-LCM,                                        # Least Common Multiple (76)
-PRIME,                                      # Prime (77)
-FACTORIAL,                                  # Factorial (78)
-BINOMIAL,                                   # Binomial (79)
+GCD,                                        # Greatest Common Divisor (76)
+LCM,                                        # Least Common Multiple (77)
+PRIME,                                      # Prime (78)
+FACTORIAL,                                  # Factorial (79)
+BINOMIAL,                                   # Binomial (80)
 
-ASIN,                                       # Arc Sine (80)
-ACOS,                                       # Arc Cosine (81)
-ATAN,                                       # Arc Tangent (82)
+ASIN,                                       # Arc Sine (81)
+ACOS,                                       # Arc Cosine (82)
+ATAN,                                       # Arc Tangent (83)
 
-COMPLEX,                                    # Complex Number (83)
+COMPLEX,                                    # Complex Number (84)
 ) = ALL_TYPES
 
 QUANTIFIERS = frozenset([FORALL, EXISTS])
@@ -146,7 +147,7 @@ THEORY_OPERATORS = IRA_OPERATORS | BV_OPERATORS | ARRAY_OPERATORS | STR_OPERATOR
 CUSTOM_NODE_TYPES = []
 
 assert (BOOL_OPERATORS | THEORY_OPERATORS | RELATIONS | \
-        CONSTANTS | frozenset((SYMBOL, FUNCTION, ITE))) == frozenset(ALL_TYPES)
+        CONSTANTS | frozenset((SYMBOL, FUNCTION, ITE, NUMER_ITE))) == frozenset(ALL_TYPES)
 
 assert len(BOOL_OPERATORS & THEORY_OPERATORS) == 0
 assert len(BOOL_OPERATORS & RELATIONS) == 0
@@ -203,7 +204,8 @@ __OP_STR__ = {
     LE : "LE",
     LT : "LT",
     EQUALS : "EQUALS",
-    ITE : "ITE",
+    ITE : "LOGIC_ITE",
+    NUMER_ITE : "NUMER_ITE",
     TOREAL : "TOREAL",
     BV_CONSTANT : "BV_CONSTANT",
     BV_NOT : "BV_NOT",

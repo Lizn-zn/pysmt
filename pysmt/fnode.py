@@ -735,6 +735,13 @@ class FNode(object):
             return _mgr().Ite(self, then_, else_)
         else:
             raise PysmtModeError("Cannot infix ITE with implicit argument types.")
+        
+    @assert_infix_enabled
+    def Numer_Ite(self, then_, else_):
+        if isinstance(then_, FNode) and isinstance(else_, FNode):
+            return _mgr().Ite(self, then_, else_)
+        else:
+            raise PysmtModeError("Cannot infix ITE with implicit argument types.")
 
     def And(self, right):
         return self._apply_infix(right, _mgr().And)

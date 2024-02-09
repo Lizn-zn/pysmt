@@ -350,9 +350,22 @@ class FormulaManager(object):
 
         Restriction:
           - Iff must be BOOL
+          - Left and Right must be BOOL
+        """
+        if self.get_type(left) == types.BOOL and self.get_type(right) == types.BOOL:
+            return self.create_node(node_type=op.ITE, args=(iff, left, right))
+        else:
+            return self.create_node(node_type=op.NUMER_ITE, args=(iff, left, right))
+        
+    def Numer_Ite(self, iff, left, right):
+        """ Creates an expression of the form:
+            if( iff ) then  left  else  right
+
+        Restriction:
+          - Iff must be BOOL
           - Left and Right must be both of the same type
         """
-        return self.create_node(node_type=op.ITE, args=(iff, left, right))
+        return self.create_node(node_type=op.NUMER_ITE, args=(iff, left, right))
 
     def Real(self, value):
         """ Returns a Real-type constant of the given value.

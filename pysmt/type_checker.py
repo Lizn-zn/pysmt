@@ -234,6 +234,7 @@ class SimpleTypeChecker(walkers.DagWalker):
             return self.walk_type_to_type(formula, args, REAL, BOOL)
         return self.walk_type_to_type(formula, args, INT, BOOL)
 
+    @walkers.handles(op.ITE, op.NUMER_ITE)
     def walk_ite(self, formula, args, **kwargs):
         assert formula is not None
         if None in args: return None

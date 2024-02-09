@@ -441,6 +441,9 @@ class SmtDagPrinter(DagWalker):
 
     def walk_ite(self, formula, args):
         return self.walk_nary(formula, args, "ite")
+    
+    def walk_numer_ite(self, formula, args):
+        return self.walk_nary(formula, args, "ite")
 
     # def walk_toreal(self, formula, args):
         # return self.walk_nary(formula, args, "to_real")

@@ -692,6 +692,30 @@ class Z3Converter(Converter, DagWalker):
         z3term = z3.Z3_mk_ite(self.ctx.ref(), i, t, e)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
+    
+    def walk_numer_ite(self, formula, args, **kwargs):
+        i = args[0]
+        ni = self.walk_not(None, (i,))
+        t = args[1]
+        e = args[2]
+
+        if self._get_type(formula).is_bool_type():
+            # Rewrite as (!i \/ t) & (i \/ e)
+            _args, sz = self._to_ast_array((ni, t))
+            or1 = z3.Z3_mk_or(self.ctx.ref(), sz, _args)
+            z3.Z3_inc_ref(self.ctx.ref(), or1)
+            _args, sz = self._to_ast_array((i, e))
+            or2 = z3.Z3_mk_or(self.ctx.ref(), sz, _args)
+            z3.Z3_inc_ref(self.ctx.ref(), or2)
+            _args, sz = self._to_ast_array((or1, or2))
+            z3term = z3.Z3_mk_and(self.ctx.ref(), sz, _args)
+            z3.Z3_inc_ref(self.ctx.ref(), z3term)
+            z3.Z3_dec_ref(self.ctx.ref(), or1)
+            z3.Z3_dec_ref(self.ctx.ref(), or2)
+            return z3term
+        z3term = z3.Z3_mk_ite(self.ctx.ref(), i, t, e)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
 
     def walk_algebraic_constant(self, formula, **kwargs):
         rep = str(formula.constant_value())

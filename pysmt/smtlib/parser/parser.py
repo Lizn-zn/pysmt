@@ -367,6 +367,7 @@ class SmtLibParser(object):
         self.Times = functools.partial(fix_real, mgr.Times)
         self.Div = functools.partial(fix_real, mgr.Div)
         self.Ite = functools.partial(fix_real, mgr.Ite)
+        self.Numer_Ite = functools.partial(fix_real, mgr.Numer_Ite)
         self.AllDifferent = functools.partial(fix_real, mgr.AllDifferent)
 
         # Tokens representing interpreted functions appearing in expressions
@@ -414,8 +415,8 @@ class SmtLibParser(object):
                             'sqrt': self._operator_adapter(mgr.Sqrt),
                             'cbrt': self._operator_adapter(mgr.Cbrt),
                             'square': self._operator_adapter(lambda formula:mgr.Pow(formula, exponent=mgr.Int(2))),
-                            'if': self._operator_adapter(self.Ite), 
-                            'Ite': self._operator_adapter(self.Ite), 
+                            'if': self._operator_adapter(self._logic_or_numer_ite), 
+                            'Ite': self._operator_adapter(self._logic_or_numer_ite), 
                             'dec': self._operator_adapter(lambda formula:self._minus_or_uminus(formula, mgr.Int(1))),
                             'inc': self._operator_adapter(lambda formula:self.Plus(formula, mgr.Int(1))),
                             'gcd': self._operator_adapter(mgr.GCD),
@@ -434,7 +435,7 @@ class SmtLibParser(object):
                             'atan': self._operator_adapter(mgr.ATan),
                             'complex': self._operator_adapter(mgr.Complex),
                             ####
-                            'ite':self._operator_adapter(self.Ite),
+                            'ite':self._operator_adapter(self._logic_or_numer_ite),
                             'distinct':self._operator_adapter(self.AllDifferent),
                             'to_real':self._operator_adapter(mgr.ToReal),
                             'concat':self._operator_adapter(mgr.BVConcat),
@@ -685,6 +686,15 @@ class SmtLibParser(object):
             return mgr.Iff(left, right)
         else:
             return self.Equals(left, right)
+        
+    def _logic_or_numer_ite(self, cond, left, right):
+        """Utility function that treats ite between booleans as ite and between numerical as ite"""
+        mgr = self.env.formula_manager
+        lty = self.get_type(cond)
+        if lty == self.env.type_manager.BOOL():
+            return self.Ite(cond, left, right)
+        else:
+            return self.Numer_Ite(cond, left, right)
 
 
     def _division(self, *args):
@@ -1472,6 +1482,8 @@ class SmtLibParser(object):
         """(define-fun <fun_def>)"""
         formal = []
         var = self.parse_atom(tokens, current)
+        if var in self.interpreted:
+            del self.interpreted[var]
         namedparams = self.parse_named_params(tokens, current)
         rtype = self.parse_type(tokens, current)
         bindings = []
@@ -1581,6 +1593,8 @@ class SmtLibParser(object):
         """(define-fun-rec <fun_def>)"""
         formal = []
         var = self.parse_atom(tokens, current)
+        if var in self.interpreted:
+            del self.interpreted[var]
         namedparams = self.parse_named_params(tokens, current)
         rtype = self.parse_type(tokens, current)
         bindings = []
