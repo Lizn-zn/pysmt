@@ -24,7 +24,7 @@ from pysmt.operators import (FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF,
                              REAL_CONSTANT, BOOL_CONSTANT, INT_CONSTANT,
                              PLUS, MINUS, TIMES, DIV,
                              LE, LT, EQUALS,
-                             ITE,
+                             ITE, NUMER_ITE,
                              TOREAL,
                              BV_CONSTANT, BV_NOT, BV_AND, BV_OR, BV_XOR,
                              BV_CONCAT, BV_EXTRACT,
@@ -316,6 +316,10 @@ class FNode(object):
     def is_ite(self):
         """Test whether the node is the Ite operator."""
         return self.node_type() == ITE
+    
+    def is_numer_ite(self):
+        """Test whether the node is the Ite operator."""
+        return self.node_type() == NUMER_ITE
 
     def is_equals(self):
         """Test whether the node is the Equals operator."""

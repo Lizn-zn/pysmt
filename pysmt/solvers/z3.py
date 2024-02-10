@@ -451,7 +451,7 @@ class Z3Converter(Converter, DagWalker):
                 raise NotImplementedError(formula)
         elif formula.node_type() in op.ARRAY_OPERATORS:
             return z3.ArrayRef
-        elif formula.is_ite():
+        elif formula.is_ite() or formula.is_numer_ite():
             child = formula.arg(1)
             return self.get_z3_ref(child)
         else:

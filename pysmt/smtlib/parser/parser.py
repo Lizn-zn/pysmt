@@ -434,6 +434,7 @@ class SmtLibParser(object):
                             'acos': self._operator_adapter(mgr.ACos),
                             'atan': self._operator_adapter(mgr.ATan),
                             'complex': self._operator_adapter(mgr.Complex),
+                            'Complex': self._operator_adapter(mgr.Complex),
                             ####
                             'ite':self._operator_adapter(self._logic_or_numer_ite),
                             'distinct':self._operator_adapter(self.AllDifferent),

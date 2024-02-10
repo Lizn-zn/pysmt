@@ -198,7 +198,9 @@ class HRPrinter(TreeWalker):
         self.write(")")
     
     def walk_numer_ite(self, formula):
-        cond = formula.arg(0).serialize().replace("=", "==")
+        arg = formula.arg(0)
+        cond = formula.arg(0).serialize()
+        if arg.is_equals(): cond = cond.replace("=", "==")
         self.write("Piecewise(")
         self.write("(")
         yield formula.arg(1)
