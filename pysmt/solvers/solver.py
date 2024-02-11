@@ -549,3 +549,15 @@ class Converter(object):
     def back(self, expr):
         """Convert an expression of the Solver into a PySMT term."""
         raise NotImplementedError
+
+
+class ComplexExpr(object):
+    def __init__(self, real, imag):
+        self.real = real
+        self.imag = imag
+    
+    def __call__(self):
+        return self.real, self.imag
+    
+    def __iter__(self):
+        return iter((self.real, self.imag))    

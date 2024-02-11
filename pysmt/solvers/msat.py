@@ -28,7 +28,7 @@ from pysmt.solvers.dynmsat import MSATLibLoader, MSATCreateEnv, MSATCreateConver
 import pysmt.operators as op
 from pysmt import typing as types
 from pysmt.solvers.solver import (IncrementalTrackingSolver, UnsatCoreSolver,
-                                  Model, Converter, SolverOptions)
+                                  Model, Converter, SolverOptions, ComplexExpr)
 from pysmt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
 from pysmt.walkers import DagWalker
 from pysmt.exceptions import (SolverReturnedUnknownResultError,
@@ -359,19 +359,26 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
 
     def get_value(self, item):
         self._assert_no_function_type(item)
-
         titem = self.converter.convert(item)
-        tval = self._msat_lib.msat_get_model_value(self.msat_env(), titem)
-        # if self._msat_lib.MSAT_ERROR_TERM(tval): ## zenan: catch the error if unsat
         if not hasattr(self, 'res_type'):
             raise ModelUnavilableError("model is not available")
         elif self.res_type != self._msat_lib.MSAT_SAT:
             raise ModelUnsatError("msat returns unsat")
-        val = self.converter.back(tval)
-        if self.environment.stc.get_type(item).is_real_type() and \
-               val.is_int_constant():
-            val = self.mgr.Real(val.constant_value())
-        return val
+        if isinstance(titem, ComplexExpr):
+            real, image = titem
+            tval = self._msat_lib.msat_get_model_value(self.msat_env(), real)
+            real_res = self.converter.back(tval)
+            tval = self._msat_lib.msat_get_model_value(self.msat_env(), image)
+            image_res = self.converter.back(tval)
+            return self.mgr.ToComplex(real_res, image_res)
+        else:
+            tval = self._msat_lib.msat_get_model_value(self.msat_env(), titem)
+            # if self._msat_lib.MSAT_ERROR_TERM(tval): ## zenan: catch the error if unsat
+            val = self.converter.back(tval)
+            if self.environment.stc.get_type(item).is_real_type() and \
+                val.is_int_constant():
+                val = self.mgr.Real(val.constant_value())
+            return val
 
     def get_model(self):
         return MathSAT5Model(self.environment, self.msat_env)
@@ -745,7 +752,10 @@ class MSatConverter(Converter, DagWalker):
         return res
 
     def get_symbol_from_declaration(self, decl):
-        return self.decl_to_symbol[self._msat_lib.msat_decl_id(decl)]
+        if isinstance(decl, ComplexExpr):
+            return self.decl_to_symbol[decl]
+        else:
+            return self.decl_to_symbol[self._msat_lib.msat_decl_id(decl)]
 
     def _walk_back(self, term, mgr):
         stack = [term]
@@ -783,18 +793,25 @@ class MSatConverter(Converter, DagWalker):
 
         This function might throw a InternalSolverError exception if
         an error during conversion occurs.
+        Note by Zenan: I mute this, because this is not a problem; 
+                occurs when e.g., (food_cost = (incentive * 1/3)) (food_cost = (incentive / 3.0))
+                Now is my new version.
         """
-        # Rewrite to avoid UF with bool args
-        rformula = self._ufrewriter.walk(formula)
-        res = self.walk(rformula)
-        if self._msat_lib.MSAT_ERROR_TERM(res):
-            msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
-            raise InternalSolverError(msat_msg)
-        #### I mute this, because this is not a problem; 
-        #### occurs when e.g., (food_cost = (incentive * 1/3)) (food_cost = (incentive / 3.0))
+        #### Rewrite to avoid UF with bool args
+        # rformula = self._ufrewriter.walk(formula)
+        # res = self.walk(rformula)
+        # if self._msat_lib.MSAT_ERROR_TERM(res):
+            # msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
+            # raise InternalSolverError(msat_msg)
         # if rformula != formula:
             # warn("self._msat_lib convert(): UF with bool arguments have been translated")
-        return res
+        ### Zenan: the following is my version
+        res = self.walk(formula)
+        if isinstance(res, ComplexExpr) or (not self._msat_lib.MSAT_ERROR_TERM(res)):
+            return res
+        else:
+            msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
+            raise InternalSolverError(msat_msg)
 
     def walk_and(self, formula, args, **kwargs):
         res = self._msat_lib.msat_make_true(self.msat_env())
@@ -815,7 +832,13 @@ class MSatConverter(Converter, DagWalker):
         if formula not in self.symbol_to_decl:
             self.declare_variable(formula)
         decl = self.symbol_to_decl[formula]
-        return self._msat_lib.msat_make_constant(self.msat_env(), decl)
+        if isinstance(decl, ComplexExpr):
+            real, image = decl
+            msat_term = ComplexExpr(self._msat_lib.msat_make_constant(self.msat_env(), real), \
+                    self._msat_lib.msat_make_constant(self.msat_env(), image))
+            return msat_term
+        else:
+            return self._msat_lib.msat_make_constant(self.msat_env(), decl)
 
     def walk_le(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_leq(self.msat_env(), args[0], args[1])
@@ -1089,6 +1112,68 @@ class MSatConverter(Converter, DagWalker):
                                                  c, args[(i*2)+2])
         return rval
 
+    def walk_complex_constant(self, formula, **kwargs):
+        real, image = formula.constant_value()
+        rep = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
+        return rep
+
+    def walk_complex_equals(self, formula, args, **kwargs):
+        """ complex_equals of (a+bi) = (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        real_eq = self.walk_equals(formula, (a, c))
+        image_eq = self.walk_equals(formula, (b, d))
+        return self.walk_and(formula, (real_eq, image_eq))
+
+    def walk_complex_plus(self, formula, args, **kwargs):
+        """ complex_plus of (a+bi) + (c+di)"""
+        a, b = args[0]
+        c, d = args[1]
+        real_msat_term = self.walk_plus(formula, (a, c))
+        image_msat_term = self.walk_plus(formula, (b, d))
+        msat_term = ComplexExpr(real_msat_term, image_msat_term)
+        return msat_term
+    
+    def walk_complex_minus(self, formula, args, **kwargs):
+        """ complex_minus of (a+bi) - (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        real_msat_term = self.walk_minus(formula, (a, c))
+        image_msat_term = self.walk_minus(formula, (b, d))
+        msat_term = ComplexExpr(real_msat_term, image_msat_term)
+        return msat_term
+    
+    def walk_complex_times(self, formula, args, **kwargs):
+        """ complex_times of (a+bi) * (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        ac = self.walk_times(formula, (a, c))
+        bd = self.walk_times(formula, (b, d))
+        real_msat_term = self.walk_minus(formula, (ac, bd))
+        ad = self.walk_times(formula, (a, d))
+        bc = self.walk_times(formula, (b, c))
+        image_msat_term = self.walk_plus(formula, (ad, bc))
+        msat_term = ComplexExpr(real_msat_term, image_msat_term)
+        return msat_term
+    
+    def walk_complex_div(self, formula, args, **kwargs):
+        """ complex_div of (a+bi) / (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        c_square = self.walk_times(formula, (c, c))
+        d_square = self.walk_times(formula, (d, d))
+        denominator = self.walk_plus(formula, (c_square, d_square)) 
+        ac = self.walk_times(formula, (a, c))
+        bd = self.walk_times(formula, (b, d))
+        numerator_real = self.walk_plus(formula, (ac, bd))
+        ad = self.walk_times(formula, (a, d))
+        bc = self.walk_times(formula, (b, c))
+        numerator_image = self.walk_minus(formula, (bc, ad))
+        real_msat_term = self.walk_div(formula, (numerator_real, denominator))
+        image_msat_term = self.walk_div(formula, (numerator_image, denominator))
+        msat_term = ComplexExpr(real_msat_term, image_msat_term)
+        return msat_term
+
     def _type_to_msat(self, tp):
         """Convert a pySMT type into a self._msat_lib type."""
         if tp.is_bool_type():
@@ -1151,16 +1236,32 @@ class MSatConverter(Converter, DagWalker):
         if not var.is_symbol():
             raise PysmtTypeError("Trying to declare as a variable something "
                                  "that is not a symbol: %s" % var)
-        if var.symbol_name() not in self.symbol_to_decl:
-            tp = self._type_to_msat(var.symbol_type())
-            decl = self._msat_lib.msat_declare_function(self.msat_env(),
-                                                 var.symbol_name(),
-                                                 tp)
-            if self._msat_lib.MSAT_ERROR_DECL(decl):
-                msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
-                raise InternalSolverError(msat_msg)
-            self.symbol_to_decl[var] = decl
-            self.decl_to_symbol[self._msat_lib.msat_decl_id(decl)] = var
+        sname = var.symbol_name()
+        if sname not in self.symbol_to_decl:
+            symbol_type = var.symbol_type()
+            if symbol_type.is_complex_type():
+                real_name = sname + "_real"
+                real_decl = self._msat_lib.msat_declare_function(self.msat_env(),
+                                                    real_name,
+                                                    self.realType)
+                image_name = sname + "_image"
+                image_decl = self._msat_lib.msat_declare_function(self.msat_env(),
+                                                    image_name,
+                                                    self.realType)
+
+                decl = ComplexExpr(real_decl, image_decl)
+                self.symbol_to_decl[var] = decl
+                self.decl_to_symbol[decl] = var
+            else:
+                tp = self._type_to_msat(symbol_type)
+                decl = self._msat_lib.msat_declare_function(self.msat_env(),
+                                                    sname,
+                                                    tp)
+                if self._msat_lib.MSAT_ERROR_DECL(decl):
+                    msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
+                    raise InternalSolverError(msat_msg)
+                self.symbol_to_decl[var] = decl
+                self.decl_to_symbol[self._msat_lib.msat_decl_id(decl)] = var
 
 
 class MSatQuantifierEliminator(QuantifierEliminator, IdentityDagWalker):

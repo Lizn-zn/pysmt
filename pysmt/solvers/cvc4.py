@@ -27,7 +27,7 @@ except ImportError:
 import pysmt.typing as types
 from pysmt.logics import PYSMT_LOGICS, ARRAYS_CONST_LOGICS
 
-from pysmt.solvers.solver import Solver, Converter, SolverOptions
+from pysmt.solvers.solver import Solver, Converter, SolverOptions, ComplexExpr
 from pysmt.exceptions import (SolverReturnedUnknownResultError,
                               InternalSolverError,
                               NonLinearError, PysmtValueError, ModelUnsatError, ModelUnavilableError,
@@ -102,6 +102,7 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
 
         self.reset_assertions()
         self.converter = CVC4Converter(environment, cvc4_exprMgr=self.em)
+
         return
 
     def reset_assertions(self):
@@ -184,11 +185,19 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
             raise ModelUnsatError("cvc4 returns unsat")
         self._assert_no_function_type(item)
         term = self.converter.convert(item)
-        cvc4_res = self.cvc4.getValue(term)
-        res = self.converter.back(cvc4_res)
-        if self.environment.stc.get_type(item).is_real_type() and \
-           self.environment.stc.get_type(res).is_int_type():
-            res = self.environment.formula_manager.Real(Fraction(res.constant_value(), 1))
+        if isinstance(term, ComplexExpr):
+            real, image = term
+            cvc4_res = self.cvc4.getValue(real)
+            real_res = self.converter.back(cvc4_res)
+            cvc4_res = self.cvc4.getValue(image)
+            image_res = self.converter.back(cvc4_res)
+            res = self.converter.mgr.ToComplex(real_res, image_res)
+        else:
+            cvc4_res = self.cvc4.getValue(term)
+            res = self.converter.back(cvc4_res)
+            if self.environment.stc.get_type(item).is_real_type() and \
+                self.environment.stc.get_type(res).is_int_type():
+                res = self.environment.formula_manager.Real(Fraction(res.constant_value(), 1))
         return res
 
     def _exit(self):
@@ -229,10 +238,20 @@ class CVC4Converter(Converter, DagWalker):
         if not var.is_symbol():
             raise PysmtTypeError("Trying to declare as a variable something "
                                  "that is not a symbol: %s" % var)
-        if var.symbol_name() not in self.declared_vars:
-            cvc4_type = self._type_to_cvc4(var.symbol_type())
-            decl = self.mkVar(var.symbol_name(), cvc4_type)
-            self.declared_vars[var] = decl
+        sname = var.symbol_name()
+        if sname not in self.declared_vars:
+            symbol_type = var.symbol_type()
+            if symbol_type.is_complex_type():
+                real_name = sname + "_real"
+                real_decl = self.mkVar(real_name, self.realType)
+                image_name = sname + "_image"
+                image_decl = self.mkVar(image_name, self.realType)
+                decl = ComplexExpr(real_decl, image_decl)
+                self.declared_vars[var] = decl
+            else:
+                cvc4_type = self._type_to_cvc4(var.symbol_type())
+                decl = self.mkVar(var.symbol_name(), cvc4_type)
+                self.declared_vars[var] = decl
 
     def back(self, expr):
         res = None
@@ -315,7 +334,7 @@ class CVC4Converter(Converter, DagWalker):
         assert is_pysmt_integer(formula.constant_value())
         rep = str(formula.constant_value())
         return self.mkConst(CVC4.Rational(rep))
-
+    
     def walk_bool_constant(self, formula, **kwargs):
         return self.cvc4_exprMgr.mkBoolConst(formula.constant_value())
 
@@ -388,6 +407,68 @@ class CVC4Converter(Converter, DagWalker):
 
     def walk_toreal(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.TO_REAL, args[0])
+    
+    def walk_complex_constant(self, formula, **kwargs):
+        real, image = formula.constant_value()
+        rep = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
+        return rep
+    
+    def walk_complex_equals(self, formula, args, **kwargs):
+        """ complex_equals of (a+bi) = (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        real_eq = self.walk_equals(formula, (a, c))
+        image_eq = self.walk_equals(formula, (b, d))
+        return self.walk_and(formula, (real_eq, image_eq))
+
+    def walk_complex_plus(self, formula, args, **kwargs):
+        """ complex_plus of (a+bi) + (c+di)"""
+        a, b = args[0]
+        c, d = args[1]
+        real_cvc4term = self.walk_plus(formula, (a, c))
+        image_cvc4term = self.walk_plus(formula, (b, d))
+        cvc4term = ComplexExpr(real_cvc4term, image_cvc4term)
+        return cvc4term
+    
+    def walk_complex_minus(self, formula, args, **kwargs):
+        """ complex_minus of (a+bi) - (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        real_cvc4term = self.walk_minus(formula, (a, c))
+        image_cvc4term = self.walk_minus(formula, (b, d))
+        cvc4term = ComplexExpr(real_cvc4term, image_cvc4term)
+        return cvc4term
+    
+    def walk_complex_times(self, formula, args, **kwargs):
+        """ complex_times of (a+bi) * (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        ac = self.walk_times(formula, (a, c))
+        bd = self.walk_times(formula, (b, d))
+        real_cvc4term = self.walk_minus(formula, (ac, bd))
+        ad = self.walk_times(formula, (a, d))
+        bc = self.walk_times(formula, (b, c))
+        image_cvc4term = self.walk_plus(formula, (ad, bc))
+        cvc4term = ComplexExpr(real_cvc4term, image_cvc4term)
+        return cvc4term
+    
+    def walk_complex_div(self, formula, args, **kwargs):
+        """ complex_div of (a+bi) / (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        c_square = self.walk_times(formula, (c, c))
+        d_square = self.walk_times(formula, (d, d))
+        denominator = self.walk_plus(formula, (c_square, d_square)) 
+        ac = self.walk_times(formula, (a, c))
+        bd = self.walk_times(formula, (b, d))
+        numerator_real = self.walk_plus(formula, (ac, bd))
+        ad = self.walk_times(formula, (a, d))
+        bc = self.walk_times(formula, (b, c))
+        numerator_image = self.walk_minus(formula, (bc, ad))
+        real_cvc4term = self.walk_div(formula, (numerator_real, denominator))
+        image_cvc4term = self.walk_div(formula, (numerator_image, denominator))
+        cvc4term = ComplexExpr(real_cvc4term, image_cvc4term)
+        return cvc4term
 
     def walk_function(self, formula, args, **kwargs):
         name = formula.function_name()
