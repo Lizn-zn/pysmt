@@ -378,10 +378,10 @@ class SmtLibParser(object):
                             "!" : self._enter_annotation,
                             "exists" : self._enter_quantifier,
                             "forall" : self._enter_quantifier,
-                            '+':self._operator_adapter(self.Plus),
+                            '+':self._operator_adapter(self._plus_or_cplus),
                             '-':self._operator_adapter(self._minus_or_uminus),
-                            '*':self._operator_adapter(self.Times),
-                            '/':self._operator_adapter(self._division),
+                            '*':self._operator_adapter(self._times_or_ctimes),
+                            '/':self._operator_adapter(self._div_or_cdiv),
                             'pow':self._operator_adapter(mgr.Pow),
                             '>':self._operator_adapter(self.GT),
                             '<':self._operator_adapter(self.LT),
@@ -397,7 +397,7 @@ class SmtLibParser(object):
                             # add by zenan
                             '^': self._operator_adapter(mgr.Pow),
                             'div': self._operator_adapter(self._intdivision),
-                            'mul':self._operator_adapter(self.Times),
+                            'mul':self._operator_adapter(self._times_or_ctimes),
                             'round': self._operator_adapter(mgr.Round),
                             'to_int':self._operator_adapter(mgr.Round),
                             'abs': self._operator_adapter(mgr.Abs),
@@ -433,8 +433,8 @@ class SmtLibParser(object):
                             'asin': self._operator_adapter(mgr.ASin),
                             'acos': self._operator_adapter(mgr.ACos),
                             'atan': self._operator_adapter(mgr.ATan),
-                            'complex': self._operator_adapter(mgr.Complex),
-                            'Complex': self._operator_adapter(mgr.Complex),
+                            'complex': self._operator_adapter(mgr.ToComplex),
+                            'Complex': self._operator_adapter(mgr.ToComplex),
                             ####
                             'ite':self._operator_adapter(self._logic_or_numer_ite),
                             'distinct':self._operator_adapter(self.AllDifferent),
@@ -551,17 +551,58 @@ class SmtLibParser(object):
                 if args[0].is_int_constant():
                     return mgr.Int(-1 * args[0].constant_value())
                 mult = mgr.Int(-1)
-            else:
+            elif lty == self.env.type_manager.REAL():
                 if args[0].is_real_constant():
                     return mgr.Real(-1 * args[0].constant_value())
                 mult = mgr.Real(-1)
-            return mgr.Times(mult, args[0])
+            elif lty == self.env.type_manager.COMPLEX():
+                mult = mgr.Complex(-1.0, 0.0)
+            return self._times_or_ctimes(mult, args[0])
         else:
             # assert len(args) == 2
-            res = self.Minus(args[0], args[1])
+            res = self._minus_or_cminus(args[0], args[1])
             for i in range(1, len(args)-1):
-                res = self.Minus(res, args[i+1])
+                res = self._minus_or_cminus(res, args[i+1])
             return res
+        
+    def _plus_or_cplus(self, *args):
+        """Utility function that handles both real and complex plus"""
+        mgr = self.env.formula_manager
+        for arg in args:
+            atype = mgr.get_type(arg)
+            if atype == self.env.type_manager.COMPLEX():
+                new_args = [mgr.ToComplex(a) for a in args]
+                return mgr.Complex_Plus(new_args)
+        return self.Plus(args)
+        
+    def _minus_or_cminus(self, left, right):
+        """Utility function that handles both real and complex minus"""
+        mgr = self.env.formula_manager
+        lty, rty = mgr.get_type(left), mgr.get_type(right)
+        if lty == self.env.type_manager.COMPLEX() or rty == self.env.type_manager.COMPLEX():
+            return mgr.Complex_Minus(mgr.ToComplex(left), mgr.ToComplex(right))
+        else:
+            return self.Minus(left, right)
+
+    def _times_or_ctimes(self, *args):
+        """Utility function that handles both real and complex times"""
+        mgr = self.env.formula_manager
+        for arg in args:
+            atype = mgr.get_type(arg)
+            if atype == self.env.type_manager.COMPLEX():
+                new_args = [mgr.ToComplex(a) for a in args]
+                return mgr.Complex_Times(new_args)
+        return self.Times(args)
+    
+    def _div_or_cdiv(self, *args):
+        """Utility function that handles both real and complex division"""
+        mgr = self.env.formula_manager
+        for arg in args:
+            atype = mgr.get_type(arg)
+            if atype == self.env.type_manager.COMPLEX():
+                new_args = [mgr.ToComplex(a) for a in args]
+                return mgr.Complex_Div(new_args)
+        return self._division(args)
 
     def _enter_smtlib_as(self, stack, tokens, key):
         """Utility function that handles 'as' that is a special function in SMTLIB"""
@@ -686,7 +727,11 @@ class SmtLibParser(object):
         if lty == self.env.type_manager.BOOL():
             return mgr.Iff(left, right)
         else:
-            return self.Equals(left, right)
+            ltype, rtype = mgr.get_type(left), mgr.get_type(right)
+            if ltype == self.env.type_manager.COMPLEX() or rtype == self.env.type_manager.COMPLEX():
+                return mgr.Complex_Equals(mgr.ToComplex(left), mgr.ToComplex(right))
+            else:
+                return self.Equals(left, right)
         
     def _logic_or_numer_ite(self, cond, left, right):
         """Utility function that treats ite between booleans as ite and between numerical as ite"""

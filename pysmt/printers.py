@@ -115,28 +115,46 @@ class HRPrinter(TreeWalker):
         yield formula.args()[-1]
         self.write(")")
 
+    def real_to_str(self, number):
+        n, d = number.numerator, number.denominator
+        if d == 1:
+            return "%s.0" % n
+        else:
+            return "%s/%s" % (n, d)
+
     def walk_real_constant(self, formula):
         assert is_pysmt_fraction(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
         # TODO: Remove this once issue 113 in gmpy2 is solved
         v = formula.constant_value()
-        n,d = v.numerator, v.denominator
-        if formula.constant_value().denominator == 1:
-            self.write("%s.0" % n)
-        else:
-            self.write("%s/%s" % (n, d))
+        self.write(self.real_to_str(v))
 
     def walk_int_constant(self, formula):
         assert is_pysmt_integer(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
         self.write(str(formula.constant_value()))
+        
+    def walk_complex_constant(self, formula):
+        real, image = formula.constant_value()
+        real = real.constant_value()
+        real_str = self.real_to_str(real)
+        image = image.constant_value()
+        if image == 0:
+            self.write(real_str)
+        elif image < 0:        
+            image = -image
+            image_str = self.real_to_str(image)
+            self.write("(%s - %s*i)" %(real_str, image_str))
+        else:
+            image_str = self.real_to_str(image)
+            self.write("(%s + %s*i)" %(real_str, image_str))
 
-    def walk_complex(self, formula):
+    def walk_complex_variable(self, formula):
         self.write("(")
         yield formula.arg(0)
         self.write(" + ")
         yield formula.arg(1)
-        self.write("*I)")
+        self.write("*i)")
 
     def walk_bool_constant(self, formula):
         if formula.constant_value():
@@ -428,12 +446,17 @@ class HRPrinter(TreeWalker):
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")
     def walk_intdiv(self, formula): return self.walk_nary(formula, " // ")
+    def walk_complex_plus(self, formula): return self.walk_nary(formula, " + ")
+    def walk_complex_minus(self, formula): return self.walk_nary(formula, " - ")
+    def walk_complex_times(self, formula): return self.walk_nary(formula, " * ")
+    def walk_complex_div(self, formula): return self.walk_nary(formula, " / ")
     def walk_pow(self, formula): return self.walk_term(formula, " ^ ")
     def walk_mod(self, formula): return self.walk_nary(formula, " mod ")
     def walk_iff(self, formula): return self.walk_nary(formula, " <-> ")
     def walk_implies(self, formula): return self.walk_nary(formula, " -> ")
     def walk_minus(self, formula): return self.walk_nary(formula, " - ")
     def walk_equals(self, formula): return self.walk_nary(formula, " = ")
+    def walk_complex_equals(self, formula): return self.walk_nary(formula, " = ")
     def walk_le(self, formula): return self.walk_nary(formula, " <= ")
     def walk_lt(self, formula): return self.walk_nary(formula, " < ")
     def walk_bv_xor(self, formula): return self.walk_nary(formula, " xor ")

@@ -21,7 +21,7 @@ import pysmt
 import pysmt.smtlib
 from pysmt.operators import (FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF,
                              SYMBOL, FUNCTION,
-                             REAL_CONSTANT, BOOL_CONSTANT, INT_CONSTANT,
+                             REAL_CONSTANT, BOOL_CONSTANT, INT_CONSTANT, COMPLEX_CONSTANT,
                              PLUS, MINUS, TIMES, DIV,
                              LE, LT, EQUALS,
                              ITE, NUMER_ITE,
@@ -51,7 +51,7 @@ from pysmt.operators import  (BOOL_OPERATORS, THEORY_OPERATORS,
                               STR_OPERATORS,
                               RELATIONS, CONSTANTS)
 
-from pysmt.typing import BOOL, REAL, INT, BVType, STRING
+from pysmt.typing import BOOL, REAL, INT, COMPLEX, BVType, STRING
 from pysmt.decorators import deprecated, assert_infix_enabled
 from pysmt.utils import twos_complement
 from pysmt.constants import (Fraction, is_python_integer,
@@ -171,6 +171,8 @@ class FNode(object):
                 return False
             if _type.is_string_type() and self.node_type() != STR_CONSTANT:
                 return False
+            if _type.is_complex_type() and self.node_type() != COMPLEX_CONSTANT:
+                return False
             if _type.is_bv_type():
                 if self.node_type() != BV_CONSTANT:
                     return False
@@ -201,6 +203,13 @@ class FNode(object):
         Optionally, check that the constant has the given value.
         """
         return self.is_constant(INT, value)
+    
+    def is_complex_constant(self, value=None):
+        """Test whether the formula is a Complex constant.
+
+        Optionally, check that the constant has the given value.
+        """
+        return self.is_constant(COMPLEX, value)
 
     def is_bv_constant(self, value=None, width=None):
         """Test whether the formula is a BitVector constant.

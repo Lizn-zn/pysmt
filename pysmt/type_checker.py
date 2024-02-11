@@ -68,12 +68,18 @@ class SimpleTypeChecker(walkers.DagWalker):
     def walk_int_to_real(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         return self.walk_type_to_type(formula, args, INT, REAL)
+    
+    @walkers.handles(op.COMPLEX_VARIABLE)
+    def walk_real_to_complex(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        return self.walk_type_to_type(formula, args, REAL, COMPLEX)
 
     def walk_real_to_real(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         return self.walk_type_to_type(formula, args, REAL, REAL)
 
     @walkers.handles(op.PLUS, op.MINUS, op.TIMES, op.DIV)
+    @walkers.handles(op.COMPLEX_PLUS, op.COMPLEX_MINUS, op.COMPLEX_TIMES, op.COMPLEX_DIV)
     def walk_realint_to_realint(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         rval = self.walk_type_to_type(formula, args, REAL, REAL)
@@ -216,6 +222,7 @@ class SimpleTypeChecker(walkers.DagWalker):
             return None
         return BVType(target_width)
 
+    @walkers.handles(op.EQUALS, op.COMPLEX_EQUALS)
     def walk_equals(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         if args[0].is_bool_type():
@@ -256,9 +263,10 @@ class SimpleTypeChecker(walkers.DagWalker):
         assert len(args) == 0
         return REAL
 
-    def walk_complex(self, formula, args, **kwargs):
+    @walkers.handles(op.COMPLEX_CONSTANT)
+    def walk_identity_complex(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
-        assert len(args) == 2
+        assert len(args) == 0
         return COMPLEX
 
     @walkers.handles(op.INT_CONSTANT)
@@ -284,7 +292,7 @@ class SimpleTypeChecker(walkers.DagWalker):
 
     def walk_symbol(self, formula, args, **kwargs):
         assert formula is not None
-        assert len(args) == 0
+        # assert len(args) == 0  ### Delete this since complex number has two args
         return formula.symbol_type()
 
     @walkers.handles(op.FORALL, op.EXISTS)

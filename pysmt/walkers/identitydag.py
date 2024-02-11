@@ -45,8 +45,8 @@ class IdentityDagWalker(DagWalker):
     def walk_int_constant(self, formula, args, **kwargs):
         return self.mgr.Int(formula.constant_value())
 
-    def walk_complex(self, formula, args, **kwargs):
-        return self.mgr.Complex(args)
+    def walk_complex_constant(self, formula, args, **kwargs):
+        return self.mgr.Complex(args[0], args[1])
 
     def walk_bool_constant(self, formula, args, **kwargs):
         return self.mgr.Bool(formula.constant_value())
@@ -96,10 +96,31 @@ class IdentityDagWalker(DagWalker):
 
     def walk_plus(self, formula, args, **kwargs):
         return self.mgr.Plus(args)
+    
+    def walk_complex_plus(self, formula, args, **kwargs):
+        return self.mgr.ComplexPlus(args[0], args[1])
+    
+    def walk_minus(self, formula, args, **kwargs):
+        return self.mgr.Minus(args[0], args[1])
+    
+    def walk_complex_minus(self, formula, args, **kwargs):
+        return self.mgr.ComplexMinus(args[0], args[1])
 
     def walk_times(self, formula, args, **kwargs):
         return self.mgr.Times(args)
+    
+    def walk_complex_times(self, formula, args, **kwargs):
+        return self.mgr.ComplexTimes(args[0], args[1])
+    
+    def walk_div(self, formula, args, **kwargs):
+        return self.mgr.Div(args[0], args[1])
 
+    def walk_intdiv(self, formula, args, **kwargs):
+        return self.mgr.IntDiv(args[0], args[1])
+    
+    def walk_complex_div(self, formula, args, **kwargs):
+        return self.mgr.ComplexDiv(args[0], args[1])
+    
     def walk_pi(self, formula, args, **kwargs):
         return self.mgr.PI()
 
@@ -144,9 +165,6 @@ class IdentityDagWalker(DagWalker):
     
     def walk_log(self, formula, args, **kwargs):
         return self.mgr.Logarithm(args[0])
-
-    def walk_minus(self, formula, args, **kwargs):
-        return self.mgr.Minus(args[0], args[1])
 
     def walk_function(self, formula, args, **kwargs):
         # We re-create the symbol name
@@ -288,8 +306,3 @@ class IdentityDagWalker(DagWalker):
                               args[0],
                               assign)
 
-    def walk_div(self, formula, args, **kwargs):
-        return self.mgr.Div(args[0], args[1])
-
-    def walk_intdiv(self, formula, args, **kwargs):
-        return self.mgr.IntDiv(args[0], args[1])

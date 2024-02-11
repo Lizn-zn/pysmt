@@ -68,6 +68,7 @@ class FormulaManager(object):
 
         self.int_constants = {}
         self.real_constants = {}
+        self.complex_constants = {}
         self.string_constants = {}
 
         self.true_formula = self.create_node(node_type=op.BOOL_CONSTANT,
@@ -103,9 +104,10 @@ class FormulaManager(object):
             raise PysmtValueError("Empty string is not a valid name")
         if not isinstance(typename, types.PySMTType):
             raise PysmtValueError("typename must be a PySMTType.")
+        tuple_args = tuple()      
         n = self.create_node(node_type=op.SYMBOL,
-                             args=tuple(),
-                             payload=(name, typename))
+                            args=tuple_args,
+                            payload=(name, typename))
         self.symbols[name] = n
         return n
 
@@ -416,11 +418,6 @@ class FormulaManager(object):
         self.int_constants[value] = n
         return n
 
-    def Complex(self, real, image):
-        """Return a constant of type COMPLEX."""
-        return self.create_node(node_type=op.COMPLEX,
-                                args=(real, image))
-
     def String(self, value):
         """Return a constant of type STRING."""
         if value in self.string_constants:
@@ -604,6 +601,85 @@ class FormulaManager(object):
     def Cbrt(self, formula):
         """ Returns the square root of the formula. """
         return self.Pow(formula, self.Real((1,3))) # this is 1/3
+    
+    def Complex(self, real, complex):
+        """ Returns a Complex-type constant of the given value.        
+        """
+        if (real, complex) in self.complex_constants:
+            return self.complex_constants[(real, complex)]
+        real = self.Real(real)
+        complex = self.Real(complex)
+
+        n = self.create_node(node_type=op.COMPLEX_CONSTANT,
+                             args=tuple(),
+                             payload=(real, complex))
+        self.real_constants[(real, complex)] = n
+        return n
+        
+    def ToComplex(self, *args):
+        """ Return a constant of type COMPLEX. """
+        if len(args) == 1:
+            var = args[0]
+            vtype = self.env.stc.get_type(var)
+            if vtype == types.COMPLEX:
+                return var
+            if var.is_constant():
+                if var.is_complex_constant():
+                    return var
+                elif var.is_real_constant() or var.is_int_constant():
+                    return self.Complex(var.constant_value(), 0.0)
+                else:
+                    raise PysmtTypeError("Real part and imagary part should be real or int, got %s" \
+                                            % self.env.stc.get_type(var))
+            else:                
+                real = self.ToReal(var)                
+                image = self.Real(0.0)
+        elif len(args) == 2:
+            real, image = args 
+            if real.is_constant() and image.is_constant():
+                return self.Complex(real.constant_value(), image.constant_value())
+        else:
+            raise PysmtTypeError("Expecting complex number with 1 or 2 arguments, got %d" % len(args))
+        return self.create_node(node_type=op.COMPLEX_VARIABLE,
+                                args=(real, image))
+        
+    def Complex_Equals(self, left, right):
+        """ Returns the equality of two complex numbers. """
+        return self.create_node(node_type=op.COMPLEX_EQUALS,
+                                args=(left, right))
+    
+    def Complex_Plus(self, *args):
+        """ Returns the addition of two complex numbers. """
+        tuple_args = self._polymorph_args_to_tuple(args)
+        if len(tuple_args) != 2:
+            raise PysmtTypeError("Expecting two complex numbers, got %d" % len(args))
+        left, right = tuple_args
+        return self.create_node(node_type=op.COMPLEX_PLUS,
+                                args=(left, right))
+        
+    def Complex_Minus(self, left, right):
+        """ Returns the subtraction of two complex numbers. """
+        return self.create_node(node_type=op.COMPLEX_MINUS,
+                                args=(left, right))
+    
+    def Complex_Times(self, *args):
+        """ Returns the multiplication of two complex numbers. """
+        tuple_args = self._polymorph_args_to_tuple(args)
+        if len(tuple_args) != 2:
+            raise PysmtTypeError("Expecting two complex numbers, got %d" % len(args))
+        left, right = tuple_args
+        return self.create_node(node_type=op.COMPLEX_TIMES,
+                                args=(left, right))
+        
+    def Complex_Div(self, *args):
+        """ Returns the division of two complex numbers. """
+        tuple_args = self._polymorph_args_to_tuple(args)
+        if len(tuple_args) != 2:
+            raise PysmtTypeError("Expecting two complex numbers, got %d" % len(args))
+        left, right = tuple_args
+        return self.create_node(node_type=op.COMPLEX_DIV,
+                                args=(left, right))
+    
 
     def AtMostOne(self, *args):
         """ At most one of the bool expressions can be true at anytime.

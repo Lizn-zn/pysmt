@@ -16,6 +16,7 @@
 #   limitations under the License.
 #
 from __future__ import absolute_import
+from typing import Any
 
 from pysmt.exceptions import SolverAPINotFound
 
@@ -74,7 +75,16 @@ def askey(n):
     assert isinstance(n, z3.AstRef)
     return AstRefKey(n)
 
-
+class Z3ComplexExpr(object):
+    def __init__(self, real, imag):
+        self.real = real
+        self.imag = imag
+    
+    def __call__(self):
+        return self.real, self.imag
+    
+    def __iter__(self):
+        return iter((self.real, self.imag))    
 
 class Z3Model(Model):
 
@@ -293,8 +303,16 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
     def get_value(self, item):
         self._assert_no_function_type(item)
         titem = self.converter.convert(item)
-        z3_res = self.z3.model().eval(titem, model_completion=True)
-        res = self.converter.back(z3_res, self.z3.model())
+        if isinstance(titem, Z3ComplexExpr):
+            real, imag = titem
+            real = self.z3.model().eval(real, model_completion=True)
+            imag = self.z3.model().eval(imag, model_completion=True)
+            z3_real_res = self.converter.back(real, self.z3.model())
+            z3_imag_res = self.converter.back(imag, self.z3.model())
+            res = self.mgr.ToComplex(z3_real_res, z3_imag_res)
+        else:
+            z3_res = self.z3.model().eval(titem, model_completion=True)
+            res = self.converter.back(z3_res, self.z3.model())
         if not res.is_constant():
             return res.simplify()
         return res
@@ -305,7 +323,7 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
 
 
 BOOLREF_SET = op.BOOL_OPERATORS | op.RELATIONS
-ARITHREF_SET = op.IRA_OPERATORS
+ARITHREF_SET = op.IRA_OPERATORS | op.CRA_OPERATORS
 BITVECREF_SET = op.BV_OPERATORS
 
 
@@ -422,7 +440,7 @@ class Z3Converter(Converter, DagWalker):
             sort = z3.DeclareSort(name, self.ctx)
             self._z3Sorts[name] = sort
         return sort
-
+    
     def get_z3_ref(self, formula):
         if formula.node_type in op.QUANTIFIERS:
             return z3.QuantifierRef
@@ -438,11 +456,12 @@ class Z3Converter(Converter, DagWalker):
                 type_ = type_.return_type
             else:
                 type_ = formula.symbol_type()
-
             if type_.is_bool_type():
                 return z3.BoolRef
             elif type_.is_real_type() or type_.is_int_type():
                 return z3.ArithRef
+            elif type_.is_complex_type():
+                return Z3ComplexExpr(z3.ArithRef, z3.ArithRef)
             elif type_.is_array_type():
                 return z3.ArrayRef
             elif type_.is_bv_type():
@@ -472,6 +491,14 @@ class Z3Converter(Converter, DagWalker):
     def convert(self, formula):
         z3term = self.walk(formula)
         ref_class = self.get_z3_ref(formula)
+        if isinstance(z3term, Z3ComplexExpr):
+            assert isinstance(ref_class, Z3ComplexExpr), \
+                            "Expected ref_class to be a complex if z3term is a complex"
+            real_term, real_ref = z3term.real, ref_class.real
+            real_res = real_ref(real_term, self.ctx)
+            imag_term, imag_ref = z3term.imag, ref_class.imag
+            imag_res = imag_ref(imag_term, self.ctx)
+            return Z3ComplexExpr(real_res, imag_res)
         return ref_class(z3term, self.ctx)
 
     def body_walk(self, formula):
@@ -662,6 +689,17 @@ class Z3Converter(Converter, DagWalker):
             raise ConvertExpressionError(message=("Unsupported string symbol: %s" %
                                                   str(formula)),
                                          expression=formula)
+        elif symbol_type.is_complex_type():
+            sort_ast = self.z3RealSort.ast
+            real_name = sname + "_real"
+            z3_sname = z3.Z3_mk_string_symbol(self.ctx.ref(), real_name)
+            real_res = z3.Z3_mk_const(self.ctx.ref(), z3_sname, sort_ast)
+            z3.Z3_inc_ref(self.ctx.ref(), real_res)
+            imag_name = sname + "_imag"
+            z3_sname = z3.Z3_mk_string_symbol(self.ctx.ref(), imag_name)
+            imag_res = z3.Z3_mk_const(self.ctx.ref(), z3_sname, sort_ast)
+            z3.Z3_inc_ref(self.ctx.ref(), imag_res)
+            return Z3ComplexExpr(real_res, imag_res)
         else:
             sort_ast = self._type_to_z3(symbol_type).ast
         # Create const with given sort
@@ -694,28 +732,7 @@ class Z3Converter(Converter, DagWalker):
         return z3term
     
     def walk_numer_ite(self, formula, args, **kwargs):
-        i = args[0]
-        ni = self.walk_not(None, (i,))
-        t = args[1]
-        e = args[2]
-
-        if self._get_type(formula).is_bool_type():
-            # Rewrite as (!i \/ t) & (i \/ e)
-            _args, sz = self._to_ast_array((ni, t))
-            or1 = z3.Z3_mk_or(self.ctx.ref(), sz, _args)
-            z3.Z3_inc_ref(self.ctx.ref(), or1)
-            _args, sz = self._to_ast_array((i, e))
-            or2 = z3.Z3_mk_or(self.ctx.ref(), sz, _args)
-            z3.Z3_inc_ref(self.ctx.ref(), or2)
-            _args, sz = self._to_ast_array((or1, or2))
-            z3term = z3.Z3_mk_and(self.ctx.ref(), sz, _args)
-            z3.Z3_inc_ref(self.ctx.ref(), z3term)
-            z3.Z3_dec_ref(self.ctx.ref(), or1)
-            z3.Z3_dec_ref(self.ctx.ref(), or2)
-            return z3term
-        z3term = z3.Z3_mk_ite(self.ctx.ref(), i, t, e)
-        z3.Z3_inc_ref(self.ctx.ref(), z3term)
-        return z3term
+        return self.walk_ite(formula, args)
 
     def walk_algebraic_constant(self, formula, **kwargs):
         rep = str(formula.constant_value())
@@ -776,8 +793,87 @@ class Z3Converter(Converter, DagWalker):
 
     def walk_round(self, formula, args, **kwargs):
         """ exactly same with walk_realtoint """
-        z3term = z3.Z3_mk_real2int(self.ctx.ref(), args[0])
+        # z3term = z3.Z3_mk_real2int(self.ctx.ref(), args[0])
+        # z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return self.walk_realtoint(formula, args)
+    
+    def walk_complex_constant(self, formula, args, **kwargs):
+        real, image = formula.constant_value()
+        z3term = Z3ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
+        return z3term
+    
+    def walk_complex_variable(self, formula, args, **kwargs):
+        z3term = Z3ComplexExpr(args[0], args[1])
+        return z3term
+    
+    def walk_complex_equals(self, formula, args, **kwargs):
+        """ complex_equals of a+bi = c+di """
+        a, b = args[0]
+        c, d = args[1]
+        real_z3term = z3.Z3_mk_eq(self.ctx.ref(), a, c)
+        z3.Z3_inc_ref(self.ctx.ref(), real_z3term)
+        image_z3term = z3.Z3_mk_eq(self.ctx.ref(), b, d)
+        z3.Z3_inc_ref(self.ctx.ref(), image_z3term)
+        _args, sz = self._to_ast_array((real_z3term, image_z3term))
+        z3term = z3.Z3_mk_and(self.ctx.ref(), sz, _args)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+    
+    def walk_complex_plus(self, formula, args, **kwargs):
+        """ complex_plus of (a+bi) + (c+di)"""
+        a, b = args[0]
+        c, d = args[1]
+        real_z3term = self.walk_plus(formula, (a, c))
+        z3.Z3_inc_ref(self.ctx.ref(), real_z3term)
+        image_z3term = self.walk_plus(formula, (b, d))
+        z3.Z3_inc_ref(self.ctx.ref(), image_z3term)
+        z3term = Z3ComplexExpr(real_z3term, image_z3term)
+        return z3term
+    
+    def walk_complex_minus(self, formula, args, **kwargs):
+        """ complex_minus of (a+bi) - (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        real_z3term = self.walk_minus(formula, (a, c))
+        z3.Z3_inc_ref(self.ctx.ref(), real_z3term)
+        image_z3term = self.walk_minus(formula, (b, d))
+        z3.Z3_inc_ref(self.ctx.ref(), image_z3term)
+        z3term = Z3ComplexExpr(real_z3term, image_z3term)
+        return z3term
+    
+    def walk_complex_times(self, formula, args, **kwargs):
+        """ complex_times of (a+bi) * (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        ac = self.walk_times(formula, (a, c))
+        bd = self.walk_times(formula, (b, d))
+        real_z3term = self.walk_minus(formula, (ac, bd))
+        z3.Z3_inc_ref(self.ctx.ref(), real_z3term)
+        ad = self.walk_times(formula, (a, d))
+        bc = self.walk_times(formula, (b, c))
+        image_z3term = self.walk_plus(formula, (ad, bc))
+        z3.Z3_inc_ref(self.ctx.ref(), image_z3term)
+        z3term = Z3ComplexExpr(real_z3term, image_z3term)
+        return z3term
+    
+    def walk_complex_div(self, formula, args, **kwargs):
+        """ complex_div of (a+bi) / (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        c_square = self.walk_times(formula, (c, c))
+        d_square = self.walk_times(formula, (d, d))
+        denominator = self.walk_plus(formula, (c_square, d_square)) 
+        ac = self.walk_times(formula, (a, c))
+        bd = self.walk_times(formula, (b, d))
+        numerator_real = self.walk_plus(formula, (ac, bd))
+        ad = self.walk_times(formula, (a, d))
+        bc = self.walk_times(formula, (b, c))
+        numerator_image = self.walk_minus(formula, (bc, ad))
+        real_z3term = self.walk_div(formula, (numerator_real, denominator))
+        z3.Z3_inc_ref(self.ctx.ref(), real_z3term)
+        image_z3term = self.walk_div(formula, (numerator_image, denominator))
+        z3.Z3_inc_ref(self.ctx.ref(), image_z3term)
+        z3term = Z3ComplexExpr(real_z3term, image_z3term)
         return z3term
     
     def _z3_func_decl(self, func_name):
@@ -960,7 +1056,7 @@ class Z3Converter(Converter, DagWalker):
             z3.Z3_inc_ref(self.ctx.ref(), z3term)
             return z3term
         return walk_nary
-
+    
     def make_walk_binary(func):
         def walk_binary(self, formula, args, **kwargs):
             z3term = func(self.ctx.ref(), args[0], args[1])
@@ -968,16 +1064,7 @@ class Z3Converter(Converter, DagWalker):
             return z3term
         return walk_binary
     
-    # def walk_pi(self, formula, args, **kwargs):
-    #     temp_smt = "(declare-fun c () Real)\n(assert (= c pi))\n(check-sat)"
-    #     s = z3.Solver()
-    #     s.from_string(temp_smt)
-    #     s.check()
-    #     m = s.model()
-    #     z3term = m[m[0]].as_ast()
-    #     z3.Z3_inc_ref(self.ctx.ref(), z3term)
-    #     return z3term
-
+    
     walk_and     = make_walk_nary(z3.Z3_mk_and)
     walk_or      = make_walk_nary(z3.Z3_mk_or)
     walk_plus    = make_walk_nary(z3.Z3_mk_add)
@@ -1039,7 +1126,11 @@ class Z3Converter(Converter, DagWalker):
             # This might not be the case if we are using the global context
             # and the interpreter is shutting down
             for t in self.memoization.values():
-                z3.Z3_dec_ref(self.ctx.ref(), t)
+                if isinstance(t, Z3ComplexExpr):
+                    z3.Z3_dec_ref(self.ctx.ref(), t.real)
+                    z3.Z3_dec_ref(self.ctx.ref(), t.imag)
+                else:
+                    z3.Z3_dec_ref(self.ctx.ref(), t)
 
 # EOC Z3Converter
 

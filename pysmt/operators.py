@@ -24,7 +24,7 @@ these operators.
 from itertools import chain
 
 
-ALL_TYPES = list(range(0,85))
+ALL_TYPES = list(range(0,91))
 
 (
 FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF, # Boolean Logic (0-6)
@@ -100,7 +100,13 @@ ASIN,                                       # Arc Sine (81)
 ACOS,                                       # Arc Cosine (82)
 ATAN,                                       # Arc Tangent (83)
 
-COMPLEX,                                    # Complex Number (84)
+COMPLEX_VARIABLE,                           # Complex Number (84)
+COMPLEX_CONSTANT,                           # Complex Constant (85)
+COMPLEX_EQUALS,                             # Complex Equals (86)
+COMPLEX_PLUS,                               # Complex Plus (87)
+COMPLEX_MINUS,                              # Complex Minus (88)
+COMPLEX_TIMES,                              # Complex Times (89)
+COMPLEX_DIV,                                # Complex Division (90)
 ) = ALL_TYPES
 
 QUANTIFIERS = frozenset([FORALL, EXISTS])
@@ -109,7 +115,7 @@ BOOL_CONNECTIVES = frozenset([AND, OR, NOT, IMPLIES, IFF])
 
 BOOL_OPERATORS = frozenset(QUANTIFIERS | BOOL_CONNECTIVES)
 
-CONSTANTS = frozenset([BOOL_CONSTANT, REAL_CONSTANT, INT_CONSTANT,
+CONSTANTS = frozenset([BOOL_CONSTANT, REAL_CONSTANT, INT_CONSTANT, COMPLEX_CONSTANT,
                        BV_CONSTANT, STR_CONSTANT, ALGEBRAIC_CONSTANT])
 
 # Relations are predicates on theory atoms.
@@ -136,9 +142,10 @@ IRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, BV_TONATURAL,
                           REALTOINT, LOG, MOD, INTDIV, ROUND, EXP, SIN, COS, 
                           PI, GCD, LCM, PRIME, FACTORIAL, BINOMIAL, ASIN, ACOS, ATAN])
 
-CRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, BV_TONATURAL,
-                          REALTOINT, LOG, MOD, INTDIV, ROUND, EXP, SIN, COS, 
-                          PI, GCD, LCM, PRIME, FACTORIAL, BINOMIAL, ASIN, ACOS, ATAN, COMPLEX])
+CRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, LOG, 
+                           EXP, SIN, COS, PI, ASIN, ACOS, ATAN, 
+                          COMPLEX_VARIABLE, COMPLEX_EQUALS, 
+                          COMPLEX_PLUS, COMPLEX_MINUS, COMPLEX_TIMES, COMPLEX_DIV])
 
 ARRAY_OPERATORS = frozenset([ARRAY_SELECT, ARRAY_STORE, ARRAY_VALUE])
 
@@ -269,5 +276,11 @@ __OP_STR__ = {
     ASIN: "Asin",
     ACOS: "Acos",
     ATAN: "Atan", 
-    COMPLEX: "Complex",
+    COMPLEX_VARIABLE: "COMPLEX_VARIABLE",
+    COMPLEX_CONSTANT: "COMPLEX_CONSTANT",
+    COMPLEX_EQUALS: "COMPLEX_EQUALS",
+    COMPLEX_PLUS: "COMPLEX_PLUS",
+    COMPLEX_MINUS: "COMPLEX_MINUS",
+    COMPLEX_TIMES: "COMPLEX_TIMES",
+    COMPLEX_DIV: "COMPLEX_DIV",
 }

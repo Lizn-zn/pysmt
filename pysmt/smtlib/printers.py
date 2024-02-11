@@ -87,7 +87,6 @@ class SmtPrinter(TreeWalker):
     def walk_constant(self, formula, constant):
         self.write(constant)
 
-    def walk_complex(self, formula): return self.walk_nary(formula, "complex")
     def walk_and(self, formula): return self.walk_nary(formula, "and")
     def walk_or(self, formula): return self.walk_nary(formula, "or")
     def walk_not(self, formula): return self.walk_nary(formula, "not")
