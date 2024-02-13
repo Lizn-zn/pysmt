@@ -795,7 +795,8 @@ class FormulaManager(object):
 
     def Even(self, formula):
         """Returns the encoding of the even expression"""
-        return self.Equals(self.Modulo(formula, self.Int(2)), self.Int(0))
+        return self.create_node(node_type=op.EVEN,
+                                args=(self.RealToInt(formula),))
 
     def Factorial(self, formula):
         """Returns the encoding of the factorial expression"""

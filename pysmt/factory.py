@@ -28,7 +28,7 @@ from functools import partial
 from pysmt.exceptions import (NoSolverAvailableError, SolverRedefinitionError,
                               NoLogicAvailableError,
                               SolverAPINotFound)
-from pysmt.logics import QF_UFLIRA, LRA, QF_UFLRA, QF_LIA
+from pysmt.logics import QF_UFLIRA, LRA, QF_UFLRA, QF_LIA, QF_NIRA
 from pysmt.logics import AUTO as AUTO_LOGIC
 from pysmt.logics import most_generic_logic, get_closer_logic
 from pysmt.logics import convert_logic_from_string
@@ -51,7 +51,7 @@ DEFAULT_PREFERENCES = {'Solver': ['msat', 'optimsat', 'z3', 'cvc4', 'yices', 'bt
                                      'msat_sua', 'optimsat_sua', 'yices_sua', 'z3_sua'
                                     ],
                        'Interpolator': ['msat', 'optimsat', 'z3']}
-DEFAULT_LOGIC = QF_UFLIRA
+DEFAULT_LOGICS = [QF_NIRA, QF_UFLIRA]
 DEFAULT_QE_LOGIC = LRA
 DEFAULT_INTERPOLATION_LOGIC = QF_UFLRA
 DEFAULT_OPTIMIZER_LOGIC = QF_LIA
@@ -77,7 +77,7 @@ class Factory(object):
         if preferences is not None:
             self.preferences.update(preferences)
         #
-        self._default_logic = DEFAULT_LOGIC
+        self._default_logic = DEFAULT_LOGICS
         self._default_qe_logic = DEFAULT_QE_LOGIC
         self._default_interpolation_logic = DEFAULT_INTERPOLATION_LOGIC
         self._default_optimizer_logic = DEFAULT_OPTIMIZER_LOGIC
@@ -169,8 +169,12 @@ class Factory(object):
                 try:
                     logic = most_generic_logic(SolverClass.LOGICS)
                 except NoLogicAvailableError:
-                    if default_logic in SolverClass.LOGICS:
-                        logic = default_logic
+                    avail_logic = []
+                    for l in DEFAULT_LOGICS:
+                        if l in SolverClass.LOGICS:
+                            avail_logic.append(l)
+                    if len(avail_logic) > 0:
+                        logic = avail_logic[0]
                     else:
                         raise NoLogicAvailableError("Cannot automatically select a logic")
 

@@ -152,7 +152,7 @@ class SmtLibCommand(namedtuple('SmtLibCommand', ['name', 'args'])):
                                                 name,
                                                 params,
                                                 rtype.as_smtlib(funstyle=False)))
-            printer.printer(expr)
+            # printer.printer(expr)
             outstream.write(")")
 
         elif self.name in [smtcmd.PUSH, smtcmd.POP, smtcmd.LOAD_OBJECTIVE_MODEL]:

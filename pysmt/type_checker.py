@@ -69,6 +69,11 @@ class SimpleTypeChecker(walkers.DagWalker):
         #pylint: disable=unused-argument
         return self.walk_type_to_type(formula, args, INT, REAL)
     
+    @walkers.handles(op.PRIME, op.EVEN)
+    def walk_int_to_bool(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        return self.walk_type_to_type(formula, args, INT, BOOL)
+    
     @walkers.handles(op.COMPLEX_VARIABLE)
     def walk_real_to_complex(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
@@ -100,7 +105,7 @@ class SimpleTypeChecker(walkers.DagWalker):
             return REAL 
         return rval
 
-    @walkers.handles(op.INTDIV, op.MOD, op.GCD, op.LCM, op.BINOMIAL, op.PRIME, op.FACTORIAL)
+    @walkers.handles(op.INTDIV, op.MOD, op.GCD, op.LCM, op.BINOMIAL, op.FACTORIAL)
     def walk_int_to_int(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         return self.walk_type_to_type(formula, args, INT, INT)

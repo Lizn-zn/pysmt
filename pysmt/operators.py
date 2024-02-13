@@ -24,7 +24,7 @@ these operators.
 from itertools import chain
 
 
-ALL_TYPES = list(range(0,91))
+ALL_TYPES = list(range(0,92))
 
 (
 FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF, # Boolean Logic (0-6)
@@ -93,20 +93,21 @@ PI,                                         # Pi (75)
 GCD,                                        # Greatest Common Divisor (76)
 LCM,                                        # Least Common Multiple (77)
 PRIME,                                      # Prime (78)
-FACTORIAL,                                  # Factorial (79)
-BINOMIAL,                                   # Binomial (80)
+EVEN,                                       # Even (79)
+FACTORIAL,                                  # Factorial (80)
+BINOMIAL,                                   # Binomial (81)
 
-ASIN,                                       # Arc Sine (81)
-ACOS,                                       # Arc Cosine (82)
-ATAN,                                       # Arc Tangent (83)
+ASIN,                                       # Arc Sine (82)
+ACOS,                                       # Arc Cosine (83)
+ATAN,                                       # Arc Tangent (84)
 
-COMPLEX_VARIABLE,                           # Complex Number (84)
-COMPLEX_CONSTANT,                           # Complex Constant (85)
-COMPLEX_EQUALS,                             # Complex Equals (86)
-COMPLEX_PLUS,                               # Complex Plus (87)
-COMPLEX_MINUS,                              # Complex Minus (88)
-COMPLEX_TIMES,                              # Complex Times (89)
-COMPLEX_DIV,                                # Complex Division (90)
+COMPLEX_VARIABLE,                           # Complex Number (85)
+COMPLEX_CONSTANT,                           # Complex Constant (86)
+COMPLEX_EQUALS,                             # Complex Equals (87)
+COMPLEX_PLUS,                               # Complex Plus (88)
+COMPLEX_MINUS,                              # Complex Minus (89)
+COMPLEX_TIMES,                              # Complex Times (90)
+COMPLEX_DIV,                                # Complex Division (91)
 ) = ALL_TYPES
 
 QUANTIFIERS = frozenset([FORALL, EXISTS])
@@ -140,7 +141,7 @@ STR_OPERATORS = frozenset([STR_LENGTH, STR_CONCAT, STR_INDEXOF, STR_REPLACE,
 
 IRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, BV_TONATURAL,
                           REALTOINT, LOG, MOD, INTDIV, ROUND, EXP, SIN, COS, 
-                          PI, GCD, LCM, PRIME, FACTORIAL, BINOMIAL, ASIN, ACOS, ATAN])
+                          PI, GCD, LCM, PRIME, EVEN, FACTORIAL, BINOMIAL, ASIN, ACOS, ATAN])
 
 CRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, LOG, 
                            EXP, SIN, COS, PI, ASIN, ACOS, ATAN, 
@@ -271,6 +272,7 @@ __OP_STR__ = {
     GCD: "GCD",
     LCM: "LCM",
     PRIME: "PRIME",
+    EVEN: "EVEN",
     FACTORIAL: "Factorial",
     BINOMIAL: "Binomial",
     ASIN: "Asin",
