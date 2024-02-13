@@ -78,7 +78,7 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
 
     LOGICS = PYSMT_LOGICS -\
              ARRAYS_CONST_LOGICS -\
-             set(l for l in PYSMT_LOGICS if not l.theory.linear)
+             set(l for l in PYSMT_LOGICS if l.theory.strings)
 
     OptionsClass = CVC4Options
 
@@ -99,6 +99,7 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
             self.logic_name = "QF_LRA"
         elif self.logic_name == "BOOL":
             self.logic_name = "LRA"
+        
 
         self.reset_assertions()
         self.converter = CVC4Converter(environment, cvc4_exprMgr=self.em)
@@ -291,6 +292,39 @@ class CVC4Converter(Converter, DagWalker):
     def convert(self, formula):
         return self.walk(formula)
 
+    """_summary_
+        The following are constant and symbol conversion
+    """
+    def walk_symbol(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        if formula not in self.declared_vars:
+            self.declare_variable(formula)
+        return self.declared_vars[formula]
+
+    def walk_real_constant(self, formula, **kwargs):
+        frac = formula.constant_value()
+        n,d = frac.numerator, frac.denominator
+        rep = str(n) + "/" + str(d)
+        return self.mkConst(CVC4.Rational(rep))
+
+    def walk_int_constant(self, formula, **kwargs):
+        assert is_pysmt_integer(formula.constant_value())
+        rep = str(formula.constant_value())
+        return self.mkConst(CVC4.Rational(rep))
+    
+    def walk_bool_constant(self, formula, **kwargs):
+        return self.cvc4_exprMgr.mkBoolConst(formula.constant_value())
+
+    def walk_function(self, formula, args, **kwargs):
+        name = formula.function_name()
+        if name not in self.declared_vars:
+            self.declare_variable(name)
+        decl = self.declared_vars[name]
+        return self.mkExpr(CVC4.APPLY_UF, decl, args)
+    
+    """_summary_
+        The following are logic relation
+    """
     def walk_and(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.AND, args)
 
@@ -299,12 +333,6 @@ class CVC4Converter(Converter, DagWalker):
 
     def walk_not(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.NOT, args[0])
-
-    def walk_symbol(self, formula, args, **kwargs):
-        #pylint: disable=unused-argument
-        if formula not in self.declared_vars:
-            self.declare_variable(formula)
-        return self.declared_vars[formula]
 
     def walk_iff(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.EQUAL, args[0], args[1])
@@ -324,20 +352,9 @@ class CVC4Converter(Converter, DagWalker):
     def walk_numer_ite(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.ITE, args[0], args[1], args[2])
 
-    def walk_real_constant(self, formula, **kwargs):
-        frac = formula.constant_value()
-        n,d = frac.numerator, frac.denominator
-        rep = str(n) + "/" + str(d)
-        return self.mkConst(CVC4.Rational(rep))
-
-    def walk_int_constant(self, formula, **kwargs):
-        assert is_pysmt_integer(formula.constant_value())
-        rep = str(formula.constant_value())
-        return self.mkConst(CVC4.Rational(rep))
-    
-    def walk_bool_constant(self, formula, **kwargs):
-        return self.cvc4_exprMgr.mkBoolConst(formula.constant_value())
-
+    """_summary_
+        The following are logic quantifier
+    """
     def walk_exists(self, formula, args, **kwargs):
         (bound_formula, var_list) = \
                  self._rename_bound_variables(args[0], formula.quantifier_vars())
@@ -354,37 +371,19 @@ class CVC4Converter(Converter, DagWalker):
                            bound_vars_list,
                            bound_formula)
 
+    """_summary_
+        The following are linear arithmetic operations
+    """
+    def walk_equals(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.EQUAL, args[0], args[1])
+
     def walk_plus(self, formula, args, **kwargs):
         res = self.mkExpr(CVC4.PLUS, args)
         return res
 
-    def walk_array_store(self, formula, args, **kwargs):
-        return self.mkExpr(CVC4.STORE, args[0], args[1], args[2])
-
-    def walk_array_select(self, formula, args, **kwargs):
-        return self.mkExpr(CVC4.SELECT, args[0], args[1])
-
     def walk_minus(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.MINUS, args[0], args[1])
-
-    def walk_equals(self, formula, args, **kwargs):
-        return self.mkExpr(CVC4.EQUAL, args[0], args[1])
     
-    def walk_div(self, formula, args, **kwargs):
-        if self._get_type(formula.args()[0]).is_int_type() and self._get_type(formula.args()[1]).is_int_type():
-            return self.mkExpr(CVC4.INTS_DIVISION, args[0], args[1])
-        else:
-            return self.mkExpr(CVC4.DIVISION, args[0], args[1])
-
-    def walk_pow(self, formula, args, **kwargs):
-        return self.mkExpr(CVC4.POW, args[0], args[1])
-
-    def walk_exp(self, formula, args, **kwargs):
-        return self.mkExpr(CVC4.EXPONENTIAL, args[0])
-
-    def walk_sin(self, formula, args, **kwargs):
-        return self.mkExpr(CVC4.SINE, args[0])
-
     def walk_times(self, formula, args, **kwargs):
         # if sum(1 for x in formula.args() if x.get_free_variables()) > 1:
             # raise NonLinearError(formula)
@@ -393,21 +392,56 @@ class CVC4Converter(Converter, DagWalker):
             res = self.mkExpr(CVC4.MULT, res, x)
         return res
     
-    def walk_div(self, formula, args, **kwargs):
-        res = args[0]
-        for x in args[1:]:
-            res = self.mkExpr(CVC4.DIVISION, res, x)
-        return res
-
     def walk_intdiv(self, formula, args, **kwargs):
         res = args[0]
         for x in args[1:]:
-            res = self.mkExpr(CVC4.DIVISION, res, x)
+            res = self.mkExpr(CVC4.INTS_DIVISION, res, x)
         return res
+    
+    def walk_div(self, formula, args, **kwargs):
+        if self._get_type(formula.args()[0]).is_int_type() and self._get_type(formula.args()[1]).is_int_type():
+            return self.mkExpr(CVC4.INTS_DIVISION, args[0], args[1])
+        else:
+            return self.mkExpr(CVC4.DIVISION, args[0], args[1])
 
+    """_summary_
+        The following are non-linear arithmetic operations
+    """
+    def walk_mod(self, formula, args, **kwargs):
+        res = self.mkExpr(CVC4.INTS_MODULUS, args[0], args[1])
+        return res
+    
+    def walk_even(self, formula, args, **kwargs):
+        cvc4zero = self.mkConst(CVC4.Rational("0"))
+        cvc4two = self.mkConst(CVC4.Rational("2"))
+        cvc4term = args[0]
+        cvc4mod2 = self.mkExpr(CVC4.INTS_MODULUS, cvc4term, cvc4two)
+        cvc4term = self.mkExpr(CVC4.EQUAL, cvc4mod2, cvc4zero)
+        return cvc4term
+    
+    def walk_prime(self, formula, args, **kwargs):
+        cvc4one = self.mkConst(CVC4.Rational("1"))
+        cvc4two = self.mkConst(CVC4.Rational("2"))
+        cvc4term = args[0]
+        cvc4mod2 = self.mkExpr(CVC4.INTS_MODULUS, cvc4term, cvc4two)
+        cvc4term = self.mkExpr(CVC4.EQUAL, cvc4mod2, cvc4one)
+        return cvc4term
+    
+    def walk_pow(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.POW, args[0], args[1])
+
+    def walk_exp(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.EXPONENTIAL, args[0])
+
+    def walk_sin(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.SINE, args[0])
+    
     def walk_toreal(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.TO_REAL, args[0])
     
+    """_summary_
+    The following are complex arithmetic operations
+    """
     def walk_complex_constant(self, formula, **kwargs):
         real, image = formula.constant_value()
         rep = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
@@ -470,13 +504,15 @@ class CVC4Converter(Converter, DagWalker):
         cvc4term = ComplexExpr(real_cvc4term, image_cvc4term)
         return cvc4term
 
-    def walk_function(self, formula, args, **kwargs):
-        name = formula.function_name()
-        if name not in self.declared_vars:
-            self.declare_variable(name)
-        decl = self.declared_vars[name]
-        return self.mkExpr(CVC4.APPLY_UF, decl, args)
+    """_summary_
+    MISC. operations
+    """
+    def walk_array_store(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.STORE, args[0], args[1], args[2])
 
+    def walk_array_select(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.SELECT, args[0], args[1])
+    
     def walk_bv_constant(self, formula, **kwargs):
         vrepr = str(formula.constant_value())
         width = formula.bv_width()

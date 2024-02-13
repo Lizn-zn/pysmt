@@ -694,7 +694,31 @@ class Z3Converter(Converter, DagWalker):
         res = z3.Z3_mk_const(self.ctx.ref(), z3_sname, sort_ast)
         z3.Z3_inc_ref(self.ctx.ref(), res)
         return res
-
+    
+    def walk_even(self, formula, args, **kwargs):
+        z3zero = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(0),
+                                  self.z3IntSort.ast)
+        z3two = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(2),
+                                  self.z3IntSort.ast)
+        z3term = args[0]
+        z3term = z3.Z3_mk_eq(self.ctx.ref(), z3.Z3_mk_mod(self.ctx.ref(), z3term, z3two), z3zero)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+    
+    def walk_prime(self, formula, args, **kwargs):
+        z3one = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(1),
+                                  self.z3IntSort.ast)
+        z3two = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(2),
+                                  self.z3IntSort.ast)
+        z3term = args[0]
+        z3term = z3.Z3_mk_eq(self.ctx.ref(), z3.Z3_mk_mod(self.ctx.ref(), z3term, z3two), z3one)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+        
     def walk_ite(self, formula, args, **kwargs):
         i = args[0]
         ni = self.walk_not(None, (i,))

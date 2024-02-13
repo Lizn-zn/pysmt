@@ -502,6 +502,7 @@ class SmtLibParser(object):
                          smtcmd.DEFINE_FUN : self._cmd_define_fun,
                          smtcmd.DEFINE_FUNS_REC : self._cmd_define_funs_rec,
                          smtcmd.DEFINE_FUN_REC : self._cmd_define_fun_rec,
+                         smtcmd.DECLARE_DATATYPES : self._cmd_declare_datatypes,
                          smtcmd.DEFINE_SORT: self._cmd_define_sort,
                          smtcmd.ECHO : self._cmd_echo,
                          smtcmd.EXIT : self._cmd_exit,
@@ -540,6 +541,57 @@ class SmtLibParser(object):
         self.logic = None
         mgr = self.env.formula_manager
         self.cache.update({'false':mgr.FALSE(), 'true':mgr.TRUE()})
+        
+    def _division(self, *args):
+        """Utility function that builds a division"""
+        mgr = self.env.formula_manager
+        # if len(args) < 2:
+            # raise PysmtSyntaxError("Division is supported for more than two terms: %s" %args)
+        if len(args) == 1: # This is what z3 does
+            return args[0]
+        elif len(args) == 2:
+            left, right = args
+            if left.is_constant() and right.is_constant():
+                return mgr.Real(Fraction(left.constant_value()) /
+                                Fraction(right.constant_value()))
+            else:
+                return self.Div(left, right)
+        else:
+            res = self.Div(args[0], args[1])
+            for i in range(1, len(args)-1):
+                res = self.Div(res, args[i+1])
+            return res
+
+    def _intdivision(self, *args):
+        """Utility function that builds a division"""
+        mgr = self.env.formula_manager
+        # if len(args) < 2:
+            # raise PysmtSyntaxError("Division is supported for more than two terms: %s" %args)
+        if len(args) == 1: # This is what z3 does
+            return args[0]
+        elif len(args) == 2:
+            left, right = args
+            if left.is_constant() and right.is_constant():
+                return mgr.Int(int(Fraction(left.constant_value()) /
+                                Fraction(right.constant_value())))
+            else:
+                return mgr.IntDiv(left, right)
+        else:
+            res = mgr.IntDiv(args[0], args[1])
+            for i in range(1, len(args)-1):
+                res = mgr.IntDiv(res, args[i+1])
+            return res
+        
+    def _factorial(self, *args):
+        """Utility function that builds a factorial"""
+        mgr = self.env.formula_manager
+        fact = self.cache.get("factorial")
+        if fact:
+            return fact(*args)
+        elif len(args) == 1:
+            return mgr.Factorial(args[0])
+        else:
+            raise PysmtSyntaxError("Factorial is only supported for one term: %s" %args)
 
     def _minus_or_uminus(self, *args):
         """Utility function that handles both unary and binary minus"""
@@ -573,7 +625,7 @@ class SmtLibParser(object):
             if atype == self.env.type_manager.COMPLEX():
                 new_args = [mgr.ToComplex(a) for a in args]
                 return mgr.Complex_Plus(new_args)
-        return self.Plus(args)
+        return self.Plus(*args)
         
     def _minus_or_cminus(self, left, right):
         """Utility function that handles both real and complex minus"""
@@ -592,7 +644,7 @@ class SmtLibParser(object):
             if atype == self.env.type_manager.COMPLEX():
                 new_args = [mgr.ToComplex(a) for a in args]
                 return mgr.Complex_Times(new_args)
-        return self.Times(args)
+        return self.Times(*args)
     
     def _div_or_cdiv(self, *args):
         """Utility function that handles both real and complex division"""
@@ -602,7 +654,7 @@ class SmtLibParser(object):
             if atype == self.env.type_manager.COMPLEX():
                 new_args = [mgr.ToComplex(a) for a in args]
                 return mgr.Complex_Div(new_args)
-        return self._division(args)
+        return self._division(*args)
 
     def _enter_smtlib_as(self, stack, tokens, key):
         """Utility function that handles 'as' that is a special function in SMTLIB"""
@@ -741,58 +793,6 @@ class SmtLibParser(object):
             return self.Ite(cond, left, right)
         else:
             return self.Numer_Ite(cond, left, right)
-
-
-    def _division(self, *args):
-        """Utility function that builds a division"""
-        mgr = self.env.formula_manager
-        # if len(args) < 2:
-            # raise PysmtSyntaxError("Division is supported for more than two terms: %s" %args)
-        if len(args) == 1: # This is what z3 does
-            return args[0]
-        elif len(args) == 2:
-            left, right = args
-            if left.is_constant() and right.is_constant():
-                return mgr.Real(Fraction(left.constant_value()) /
-                                Fraction(right.constant_value()))
-            else:
-                return self.Div(left, right)
-        else:
-            res = self.Div(args[0], args[1])
-            for i in range(1, len(args)-1):
-                res = self.Div(res, args[i+1])
-            return res
-
-    def _intdivision(self, *args):
-        """Utility function that builds a division"""
-        mgr = self.env.formula_manager
-        # if len(args) < 2:
-            # raise PysmtSyntaxError("Division is supported for more than two terms: %s" %args)
-        if len(args) == 1: # This is what z3 does
-            return args[0]
-        elif len(args) == 2:
-            left, right = args
-            if left.is_constant() and right.is_constant():
-                return mgr.Int(int(Fraction(left.constant_value()) /
-                                Fraction(right.constant_value())))
-            else:
-                return mgr.IntDiv(left, right)
-        else:
-            res = mgr.IntDiv(args[0], args[1])
-            for i in range(1, len(args)-1):
-                res = mgr.IntDiv(res, args[i+1])
-            return res
-        
-    def _factorial(self, *args):
-        """Utility function that builds a factorial"""
-        mgr = self.env.formula_manager
-        fact = self.cache.get("factorial")
-        if fact:
-            return fact(*args)
-        elif len(args) == 1:
-            return mgr.Factorial(args[0])
-        else:
-            raise PysmtSyntaxError("Factorial is only supported for one term: %s" %args)
 
     def _get_var(self, name, type_name):
         """Returns the PySMT variable corresponding to a declaration"""
@@ -1685,9 +1685,12 @@ class SmtLibParser(object):
         self.consume_closing(tokens, current)
         return SmtLibCommand(current, [var, formal, rtype, ebody])
 
-
     def _cmd_define_funs_rec(self, current, tokens):
         """(define-funs-rec (<fun_dec>^{n+1}) (<term>^{n+1>))"""
+        return self._cmd_not_implemented(current, tokens)
+
+    def _cmd_declare_datatypes(self, current, tokens):
+        """(declare-datatypes (<sort_dec>^{n+1}) (<datatype_dec>^{n+1}))"""
         return self._cmd_not_implemented(current, tokens)
 
     def _cmd_echo(self, current, tokens):

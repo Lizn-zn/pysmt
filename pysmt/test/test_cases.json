@@ -1,0 +1,6 @@
+{
+  "test_idx_0": {
+    "topic": "mod_func",
+    "statement": "\n; Declare the variables for the numbers and the letter\n(declare-fun num1 () Int)\n(assert (>= num1 0))\n(assert (= 1 (mod num1 2)))\n(check-sat)\n(get-value (num1))\n"
+  }
+}

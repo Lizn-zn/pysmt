@@ -277,6 +277,11 @@ class HRPrinter(TreeWalker):
         self.write("prime(")
         yield formula.arg(0)
         self.write(")")
+        
+    def walk_even(self, formula):
+        self.write("even(")
+        yield formula.arg(0)
+        self.write(")")
     
     def walk_factorial(self, formula):
         self.write("factorial(")
