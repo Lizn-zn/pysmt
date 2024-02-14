@@ -16,7 +16,7 @@
 #   limitations under the License.
 #
 from pysmt.walkers.tree import Walker
-
+from pysmt.exceptions import DefinitionMissingError
 
 class DagWalker(Walker):
     """DagWalker treats the formula as a DAG and performs memoization of the
@@ -49,7 +49,7 @@ class DagWalker(Walker):
         try:
             return formula.args()
         except AttributeError as e:
-            raise AttributeError(f"The definition of formula {formula} is missing")
+            raise DefinitionMissingError(f"The definition of formula ``{formula}'' is missing")
 
     def _push_with_children_to_stack(self, formula, **kwargs):
         """Add children to the stack."""

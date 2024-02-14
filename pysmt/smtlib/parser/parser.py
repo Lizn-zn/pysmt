@@ -106,7 +106,9 @@ class SmtLibExecutionCache(object):
 
     def _define_adapter(self, formal_parameters, expression):
         def res(*actual_parameters):
-            assert len(formal_parameters) == len(actual_parameters)
+            if len(formal_parameters) != len(actual_parameters):
+                raise PysmtSyntaxError(f"The defined function {expression} " 
+                                       f"expects {len(formal_parameters)} arguments, but {len(actual_parameters)} were given.")
             submap = dict(zip(formal_parameters, actual_parameters))
             return self.substitute(expression, submap)
         return res
@@ -434,7 +436,6 @@ class SmtLibParser(object):
                             'acos': self._operator_adapter(mgr.ACos),
                             'atan': self._operator_adapter(mgr.ATan),
                             'complex': self._operator_adapter(mgr.ToComplex),
-                            'Complex': self._operator_adapter(mgr.ToComplex),
                             ####
                             'ite':self._operator_adapter(self._logic_or_numer_ite),
                             'distinct':self._operator_adapter(self.AllDifferent),
@@ -988,8 +989,8 @@ class SmtLibParser(object):
                     while tk == "(":
                         stack.append([])
                         tk = tokens.consume()
-                    if tk in self.interpreted:
-                        fun = self.interpreted[tk]
+                    if tk.lower() in self.interpreted:
+                        fun = self.interpreted[tk.lower()]
                         fun(stack, tokens, tk)
                     else:
                         stack[-1].append(self.atom(tk, mgr))
@@ -1017,8 +1018,8 @@ class SmtLibParser(object):
                 else:
                     try:
                         # to check whether it is a special constant
-                        if tk in self.constants:
-                            res = self.constants[tk]
+                        if tk.lower() in self.constants:
+                            res = self.constants[tk.lower()]
                             stack[-1].append(res)
                         else:
                             stack[-1].append(self.atom(tk, mgr))

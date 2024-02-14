@@ -180,7 +180,7 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
 
     LOGICS = PYSMT_QF_LOGICS -\
              set(l for l in PYSMT_QF_LOGICS \
-                 if not l.theory.linear or l.theory.strings)
+                 if l.theory.strings)
 
     OptionsClass = MathSATOptions
 
@@ -276,7 +276,6 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
         if self.res_type == self._msat_lib.MSAT_UNKNOWN:
             msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
             raise SolverReturnedUnknownResultError(msat_msg)
-
         return (self.res_type == self._msat_lib.MSAT_SAT)
 
     def get_unsat_core(self):
@@ -373,7 +372,8 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
             return self.mgr.ToComplex(real_res, image_res)
         else:
             tval = self._msat_lib.msat_get_model_value(self.msat_env(), titem)
-            # if self._msat_lib.MSAT_ERROR_TERM(tval): ## zenan: catch the error if unsat
+            if self._msat_lib.MSAT_ERROR_TERM(tval): ## zenan: catch the error if unsat
+                raise ModelUnavilableError("model is not available since some solution cannot be expressed")
             val = self.converter.back(tval)
             if self.environment.stc.get_type(item).is_real_type() and \
                 val.is_int_constant():
@@ -813,6 +813,57 @@ class MSatConverter(Converter, DagWalker):
             msat_msg = self._msat_lib.msat_last_error_message(self.msat_env())
             raise InternalSolverError(msat_msg)
 
+    """_summary_
+        The following are constant and symbol conversion
+    """
+    def walk_real_constant(self, formula, **kwargs):
+        assert is_pysmt_fraction(formula.constant_value())
+        frac = formula.constant_value()
+        n,d = frac.numerator, frac.denominator
+        rep = str(n) + "/" + str(d)
+        return self._msat_lib.msat_make_number(self.msat_env(), rep)
+
+    def walk_int_constant(self, formula, **kwargs):
+        assert is_pysmt_integer(formula.constant_value())
+        rep = str(formula.constant_value())
+        return self._msat_lib.msat_make_number(self.msat_env(), rep)
+
+    def walk_algebraic_constant(self, formula, **kwargs):
+        val = formula.constant_value()
+        if val.is_irrational():
+            raise ConvertExpressionError("Cannot convert irrational constant")
+        num, den = val.numerator(), val.denominator()
+        rep = "{}/{}".format(str(num), str(den))
+        return self._msat_lib.msat_make_number(self.msat_env(), rep)
+
+    def walk_bool_constant(self, formula, **kwargs):
+        if formula.constant_value():
+            return self._msat_lib.msat_make_true(self.msat_env())
+        else:
+            return self._msat_lib.msat_make_false(self.msat_env())
+        
+    def walk_symbol(self, formula, **kwargs):
+        if formula not in self.symbol_to_decl:
+            self.declare_variable(formula)
+        decl = self.symbol_to_decl[formula]
+        if isinstance(decl, ComplexExpr):
+            real, image = decl
+            msat_term = ComplexExpr(self._msat_lib.msat_make_constant(self.msat_env(), real), \
+                    self._msat_lib.msat_make_constant(self.msat_env(), image))
+            return msat_term
+        else:
+            return self._msat_lib.msat_make_constant(self.msat_env(), decl)
+        
+    def walk_function(self, formula, args, **kwargs):
+        name = formula.function_name()
+        if name not in self.symbol_to_decl:
+            self.declare_variable(name)
+        decl = self.symbol_to_decl[name]
+        return self._msat_lib.msat_make_uf(self.msat_env(), decl, args)
+    
+    """_summary_
+        The following are logic relation
+    """
     def walk_and(self, formula, args, **kwargs):
         res = self._msat_lib.msat_make_true(self.msat_env())
         for a in args:
@@ -827,18 +878,6 @@ class MSatConverter(Converter, DagWalker):
 
     def walk_not(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_not(self.msat_env(), args[0])
-
-    def walk_symbol(self, formula, **kwargs):
-        if formula not in self.symbol_to_decl:
-            self.declare_variable(formula)
-        decl = self.symbol_to_decl[formula]
-        if isinstance(decl, ComplexExpr):
-            real, image = decl
-            msat_term = ComplexExpr(self._msat_lib.msat_make_constant(self.msat_env(), real), \
-                    self._msat_lib.msat_make_constant(self.msat_env(), image))
-            return msat_term
-        else:
-            return self._msat_lib.msat_make_constant(self.msat_env(), decl)
 
     def walk_le(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_leq(self.msat_env(), args[0], args[1])
@@ -877,32 +916,154 @@ class MSatConverter(Converter, DagWalker):
         else:
             return self._msat_lib.msat_make_term_ite(self.msat_env(), i, t, e)
 
-    def walk_real_constant(self, formula, **kwargs):
-        assert is_pysmt_fraction(formula.constant_value())
-        frac = formula.constant_value()
-        n,d = frac.numerator, frac.denominator
-        rep = str(n) + "/" + str(d)
-        return self._msat_lib.msat_make_number(self.msat_env(), rep)
+    def walk_equals(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_equal(self.msat_env(), args[0], args[1])
 
-    def walk_int_constant(self, formula, **kwargs):
-        assert is_pysmt_integer(formula.constant_value())
-        rep = str(formula.constant_value())
-        return self._msat_lib.msat_make_number(self.msat_env(), rep)
+    def walk_iff(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_iff(self.msat_env(), args[0], args[1])
 
-    def walk_algebraic_constant(self, formula, **kwargs):
-        val = formula.constant_value()
-        if val.is_irrational():
-            raise ConvertExpressionError("Cannot convert irrational constant")
-        num, den = val.numerator(), val.denominator()
-        rep = "{}/{}".format(str(num), str(den))
-        return self._msat_lib.msat_make_number(self.msat_env(), rep)
+    def walk_implies(self, formula, args, **kwargs):
+        neg = self.walk_not(self.mgr.Not(formula.arg(0)), [args[0]])
+        return self._msat_lib.msat_make_or(self.msat_env(), neg, args[1])
 
-    def walk_bool_constant(self, formula, **kwargs):
-        if formula.constant_value():
-            return self._msat_lib.msat_make_true(self.msat_env())
-        else:
-            return self._msat_lib.msat_make_false(self.msat_env())
+    """_summary_
+        The following are linear arithmetic operations
+    """
+    def walk_plus(self, formula, args, **kwargs):
+        res = self._msat_lib.msat_make_number(self.msat_env(), "0")
+        for a in args:
+            res = self._msat_lib.msat_make_plus(self.msat_env(), res, a)
+        return res
 
+    def walk_minus(self, formula, args, **kwargs):
+        n_one = self._msat_lib.msat_make_number(self.msat_env(), "-1")
+        n_s2 = self._msat_lib.msat_make_times(self.msat_env(), n_one, args[1])
+        return self._msat_lib.msat_make_plus(self.msat_env(), args[0], n_s2)
+
+    def walk_times(self, formula, args, **kwargs):
+        res = args[0]
+        for x in args[1:]:
+            res = self._msat_lib.msat_make_times(self.msat_env(), res, x)
+        return res
+    
+    def walk_div(self, formula, args, **kwargs):
+        res = args[0]
+        for x in args[1:]:
+            res = self._msat_lib.msat_make_divide(self.msat_env(), res, x)
+        return res
+
+    def walk_intdiv(self, formula, args, **kwargs):
+        return self.walk_div(formula, args)
+    
+    """_summary_
+        The following are non-linear arithmetic operations
+    """
+    def walk_pow(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_pow(self.msat_env(),
+                                    args[0], args[1])
+        
+    def walk_sqrt(self, formula, args, **kwargs):
+        msat_frac12 = self._msat_lib.msat_make_number(self.msat_env(), "1/2")
+        return self._msat_lib.msat_make_pow(self.msat_env(), args[0], msat_frac12)
+        
+    def walk_exp(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_exp(self.msat_env(), args[0])
+
+    def walk_sin(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_sin(self.msat_env(), args[0])
+
+    def walk_pi(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_pi(self.msat_env())
+    
+    def walk_e(self, formula, args, **kwargs):
+        warn("The exponential constant is involved, the solution of MathSAT can be incorrect")
+        msat_one = self._msat_lib.msat_make_number(self.msat_env(), "1")
+        return self._msat_lib.msat_make_exp(self.msat_env(), msat_one)
+        
+    def walk_log(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_log(self.msat_env(), args[0])
+
+    def walk_toreal(self, formula, args, **kwargs):
+        # In self._msat_lib toreal is implicit
+        return args[0]
+
+    def walk_mod(self, formula, args, **kwargs):
+        raise InternalSolverError("Modular is still not supported in MathSAT")
+    
+    def walk_even(self, formula, args, **kwargs):
+        raise InternalSolverError("even function involved modular, which is still not supported in MathSAT")
+
+    def walk_prime(self, formula, args, **kwargs):
+        raise InternalSolverError("prime function involved modular, which is still not supported in MathSAT")
+    
+    """_summary_
+    The following are complex arithmetic operations
+    """
+    def walk_complex_constant(self, formula, **kwargs):
+        real, image = formula.constant_value()
+        rep = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
+        return rep
+
+    def walk_complex_equals(self, formula, args, **kwargs):
+        """ complex_equals of (a+bi) = (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        real_eq = self.walk_equals(formula, (a, c))
+        image_eq = self.walk_equals(formula, (b, d))
+        return self.walk_and(formula, (real_eq, image_eq))
+
+    def walk_complex_plus(self, formula, args, **kwargs):
+        """ complex_plus of (a+bi) + (c+di)"""
+        a, b = args[0]
+        c, d = args[1]
+        real_msat_term = self.walk_plus(formula, (a, c))
+        image_msat_term = self.walk_plus(formula, (b, d))
+        msat_term = ComplexExpr(real_msat_term, image_msat_term)
+        return msat_term
+    
+    def walk_complex_minus(self, formula, args, **kwargs):
+        """ complex_minus of (a+bi) - (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        real_msat_term = self.walk_minus(formula, (a, c))
+        image_msat_term = self.walk_minus(formula, (b, d))
+        msat_term = ComplexExpr(real_msat_term, image_msat_term)
+        return msat_term
+    
+    def walk_complex_times(self, formula, args, **kwargs):
+        """ complex_times of (a+bi) * (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        ac = self.walk_times(formula, (a, c))
+        bd = self.walk_times(formula, (b, d))
+        real_msat_term = self.walk_minus(formula, (ac, bd))
+        ad = self.walk_times(formula, (a, d))
+        bc = self.walk_times(formula, (b, c))
+        image_msat_term = self.walk_plus(formula, (ad, bc))
+        msat_term = ComplexExpr(real_msat_term, image_msat_term)
+        return msat_term
+    
+    def walk_complex_div(self, formula, args, **kwargs):
+        """ complex_div of (a+bi) / (c+di) """
+        a, b = args[0]
+        c, d = args[1]
+        c_square = self.walk_times(formula, (c, c))
+        d_square = self.walk_times(formula, (d, d))
+        denominator = self.walk_plus(formula, (c_square, d_square)) 
+        ac = self.walk_times(formula, (a, c))
+        bd = self.walk_times(formula, (b, d))
+        numerator_real = self.walk_plus(formula, (ac, bd))
+        ad = self.walk_times(formula, (a, d))
+        bc = self.walk_times(formula, (b, c))
+        numerator_image = self.walk_minus(formula, (bc, ad))
+        real_msat_term = self.walk_div(formula, (numerator_real, denominator))
+        image_msat_term = self.walk_div(formula, (numerator_image, denominator))
+        msat_term = ComplexExpr(real_msat_term, image_msat_term)
+        return msat_term
+    
+    """_summary_
+        MISC. operators
+    """
     def walk_bv_constant(self, formula, **kwargs):
         rep = str(formula.constant_value())
         width = formula.bv_width()
@@ -1017,80 +1178,6 @@ class MSatConverter(Converter, DagWalker):
         return self._msat_lib.msat_make_bv_ashr(self.msat_env(),
                                          args[0], args[1])
 
-    def walk_plus(self, formula, args, **kwargs):
-        res = self._msat_lib.msat_make_number(self.msat_env(), "0")
-        for a in args:
-            res = self._msat_lib.msat_make_plus(self.msat_env(), res, a)
-        return res
-
-    def walk_minus(self, formula, args, **kwargs):
-        n_one = self._msat_lib.msat_make_number(self.msat_env(), "-1")
-        n_s2 = self._msat_lib.msat_make_times(self.msat_env(), n_one, args[1])
-        return self._msat_lib.msat_make_plus(self.msat_env(), args[0], n_s2)
-
-    def walk_equals(self, formula, args, **kwargs):
-        return self._msat_lib.msat_make_equal(self.msat_env(), args[0], args[1])
-
-    def walk_iff(self, formula, args, **kwargs):
-        return self._msat_lib.msat_make_iff(self.msat_env(), args[0], args[1])
-
-    def walk_implies(self, formula, args, **kwargs):
-        neg = self.walk_not(self.mgr.Not(formula.arg(0)), [args[0]])
-        return self._msat_lib.msat_make_or(self.msat_env(), neg, args[1])
-
-    def walk_times(self, formula, args, **kwargs):
-        res = args[0]
-        # remove this assertion due to outdated
-        # nl_count = 0 if self._msat_lib.msat_term_is_number(self.msat_env(), res) else 1
-        for x in args[1:]:
-            # if not self._msat_lib.msat_term_is_number(self.msat_env(), x):
-                # nl_count += 1
-            # if nl_count >= 2:
-                # raise NonLinearError(formula)
-            # else:
-                # res = self._msat_lib.msat_make_times(self.msat_env(), res, x)
-            res = self._msat_lib.msat_make_times(self.msat_env(), res, x)
-        return res
-    
-    def walk_div(self, formula, args, **kwargs):
-        res = args[0]
-        for x in args[1:]:
-            res = self._msat_lib.msat_make_divide(self.msat_env(), res, x)
-        return res
-
-    def walk_intdiv(self, formula, args, **kwargs):
-        res = args[0]
-        for x in args[1:]:
-            res = self._msat_lib.msat_make_divide(self.msat_env(), res, x)
-        return res
-    
-    def walk_pow(self, formula, args, **kwargs):
-        return self._msat_lib.msat_make_pow(self.msat_env(),
-                                    args[0], args[1])
-        
-    def walk_exp(self, formula, args, **kwargs):
-        return self._msat_lib.msat_make_exp(self.msat_env(), args[0])
-
-    def walk_sin(self, formula, args, **kwargs):
-        return self._msat_lib.msat_make_sin(self.msat_env(), args[0])
-
-    # def walk_pi(self, formula, args, **kwargs):
-        # return self._msat_lib.msat_make_pi(self.msat_env())
-        
-    def walk_log(self, formula, args, **kwargs):
-        return self._msat_lib.msat_make_log(self.msat_env(), args[0])
-
-    def walk_function(self, formula, args, **kwargs):
-        name = formula.function_name()
-        if name not in self.symbol_to_decl:
-            self.declare_variable(name)
-        decl = self.symbol_to_decl[name]
-        return self._msat_lib.msat_make_uf(self.msat_env(), decl, args)
-
-    def walk_toreal(self, formula, args, **kwargs):
-        # In self._msat_lib toreal is implicit
-        return args[0]
-
     def walk_bv_tonatural(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_int_from_ubv(self.msat_env(), args[0])
 
@@ -1111,68 +1198,6 @@ class MSatConverter(Converter, DagWalker):
             rval = self._msat_lib.msat_make_array_write(self.msat_env(), rval,
                                                  c, args[(i*2)+2])
         return rval
-
-    def walk_complex_constant(self, formula, **kwargs):
-        real, image = formula.constant_value()
-        rep = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
-        return rep
-
-    def walk_complex_equals(self, formula, args, **kwargs):
-        """ complex_equals of (a+bi) = (c+di) """
-        a, b = args[0]
-        c, d = args[1]
-        real_eq = self.walk_equals(formula, (a, c))
-        image_eq = self.walk_equals(formula, (b, d))
-        return self.walk_and(formula, (real_eq, image_eq))
-
-    def walk_complex_plus(self, formula, args, **kwargs):
-        """ complex_plus of (a+bi) + (c+di)"""
-        a, b = args[0]
-        c, d = args[1]
-        real_msat_term = self.walk_plus(formula, (a, c))
-        image_msat_term = self.walk_plus(formula, (b, d))
-        msat_term = ComplexExpr(real_msat_term, image_msat_term)
-        return msat_term
-    
-    def walk_complex_minus(self, formula, args, **kwargs):
-        """ complex_minus of (a+bi) - (c+di) """
-        a, b = args[0]
-        c, d = args[1]
-        real_msat_term = self.walk_minus(formula, (a, c))
-        image_msat_term = self.walk_minus(formula, (b, d))
-        msat_term = ComplexExpr(real_msat_term, image_msat_term)
-        return msat_term
-    
-    def walk_complex_times(self, formula, args, **kwargs):
-        """ complex_times of (a+bi) * (c+di) """
-        a, b = args[0]
-        c, d = args[1]
-        ac = self.walk_times(formula, (a, c))
-        bd = self.walk_times(formula, (b, d))
-        real_msat_term = self.walk_minus(formula, (ac, bd))
-        ad = self.walk_times(formula, (a, d))
-        bc = self.walk_times(formula, (b, c))
-        image_msat_term = self.walk_plus(formula, (ad, bc))
-        msat_term = ComplexExpr(real_msat_term, image_msat_term)
-        return msat_term
-    
-    def walk_complex_div(self, formula, args, **kwargs):
-        """ complex_div of (a+bi) / (c+di) """
-        a, b = args[0]
-        c, d = args[1]
-        c_square = self.walk_times(formula, (c, c))
-        d_square = self.walk_times(formula, (d, d))
-        denominator = self.walk_plus(formula, (c_square, d_square)) 
-        ac = self.walk_times(formula, (a, c))
-        bd = self.walk_times(formula, (b, d))
-        numerator_real = self.walk_plus(formula, (ac, bd))
-        ad = self.walk_times(formula, (a, d))
-        bc = self.walk_times(formula, (b, c))
-        numerator_image = self.walk_minus(formula, (bc, ad))
-        real_msat_term = self.walk_div(formula, (numerator_real, denominator))
-        image_msat_term = self.walk_div(formula, (numerator_image, denominator))
-        msat_term = ComplexExpr(real_msat_term, image_msat_term)
-        return msat_term
 
     def _type_to_msat(self, tp):
         """Convert a pySMT type into a self._msat_lib type."""

@@ -126,6 +126,9 @@ class IdentityDagWalker(DagWalker):
 
     def walk_pow(self, formula, args, **kwargs):
         return self.mgr.Pow(args[0], args[1])
+    
+    def walk_sqrt(self, formula, args, **kwargs):
+        return self.mgr.Sqrt(args[0])
 
     def walk_sin(self, formula, args, **kwargs):
         return self.mgr.Sin(args[0])

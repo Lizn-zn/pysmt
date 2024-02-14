@@ -18,7 +18,7 @@
 from __future__ import absolute_import
 from typing import Any
 
-from pysmt.exceptions import SolverAPINotFound
+from pysmt.exceptions import SolverAPINotFound, InternalSolverError
 
 try:
     import z3
@@ -655,12 +655,48 @@ class Z3Converter(Converter, DagWalker):
         for i, arg in enumerate(args):
             _args[i] = arg
         return _args, sz
-        
-    def walk_not(self, formula, args, **kwargs):
-        z3term = z3.Z3_mk_not(self.ctx.ref(), args[0])
+
+    """_summary_
+        The following are constant and symbol conversion
+    """
+    def walk_algebraic_constant(self, formula, **kwargs):
+        rep = str(formula.constant_value())
+        z3term = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  rep,
+                                  self.z3RealSort.ast)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
 
+    def walk_real_constant(self, formula, **kwargs):
+        frac = formula.constant_value()
+        n,d = frac.numerator, frac.denominator
+        rep = str(n) + "/" + str(d)
+        z3term = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  rep,
+                                  self.z3RealSort.ast)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+
+    def walk_int_constant(self, formula, **kwargs):
+        assert is_pysmt_integer(formula.constant_value())
+        const = str(formula.constant_value())
+        z3term = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  const,
+                                  self.z3IntSort.ast)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+
+    def walk_bool_constant(self, formula, **kwargs):
+        _t = z3.BoolVal(formula.constant_value(), ctx=self.ctx)
+        z3term = _t.as_ast()
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+    
+    def walk_complex_constant(self, formula, args, **kwargs):
+        real, image = formula.constant_value()
+        z3term = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
+        return z3term
+    
     def walk_symbol(self, formula, **kwargs):
         symbol_type = formula.symbol_type()
         sname = formula.symbol_name()
@@ -695,30 +731,73 @@ class Z3Converter(Converter, DagWalker):
         z3.Z3_inc_ref(self.ctx.ref(), res)
         return res
     
-    def walk_even(self, formula, args, **kwargs):
-        z3zero = z3.Z3_mk_numeral(self.ctx.ref(),
-                                  str(0),
-                                  self.z3IntSort.ast)
-        z3two = z3.Z3_mk_numeral(self.ctx.ref(),
-                                  str(2),
-                                  self.z3IntSort.ast)
-        z3term = args[0]
-        z3term = z3.Z3_mk_eq(self.ctx.ref(), z3.Z3_mk_mod(self.ctx.ref(), z3term, z3two), z3zero)
+    def walk_function(self, formula, args, **kwargs):
+        """ Create a Z3 Function Application for the given function. 
+            If the function is recursive, then create a Z3 Recursive Function Application. """
+        func_name = formula.function_name()
+        _args, sz = self._to_ast_array(args)
+        if func_name in self._z3_func_decl_cache:
+            z3func = self._z3_func_decl_cache[func_name]
+        elif str(func_name) in self._rec_funs: # if it is rec funs
+            args, _, expr = self._rec_funs[str(func_name)]
+            z3func = self._z3_rec_func_decl(formula.function_name())
+            body = self.body_walk(expr)
+            new_args = args
+            for (i, a) in enumerate(args):
+                new_args[i] = self.walk_symbol(a)
+            new_args, sz = self._to_ast_array(new_args)
+            z3.Z3_add_rec_def(self.ctx.ref(), z3func, sz, new_args, body)
+        else:
+            z3func = self._z3_func_decl(formula.function_name())
+        z3term = z3.Z3_mk_app(self.ctx.ref(), z3func, sz, _args)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
     
-    def walk_prime(self, formula, args, **kwargs):
-        z3one = z3.Z3_mk_numeral(self.ctx.ref(),
-                                  str(1),
-                                  self.z3IntSort.ast)
-        z3two = z3.Z3_mk_numeral(self.ctx.ref(),
-                                  str(2),
-                                  self.z3IntSort.ast)
-        z3term = args[0]
-        z3term = z3.Z3_mk_eq(self.ctx.ref(), z3.Z3_mk_mod(self.ctx.ref(), z3term, z3two), z3one)
+    def _z3_func_decl(self, func_name):
+        """Create a Z3 Function Declaration for the given function."""
+        try:
+            return self._z3_func_decl_cache[func_name]
+        except KeyError:
+            tp = func_name.symbol_type()
+            arity = len(tp.param_types)
+            z3dom = (z3.Sort * arity)()
+            for i, t in enumerate(tp.param_types):
+                z3dom[i] = self._type_to_z3(t).ast
+            z3ret = self._type_to_z3(tp.return_type).ast
+            z3name = z3.Z3_mk_string_symbol(self.ctx.ref(),
+                                            func_name.symbol_name())
+            z3func = z3.Z3_mk_func_decl(self.ctx.ref(), z3name,
+                                        arity, z3dom, z3ret)
+            self._z3_func_decl_cache[func_name] = z3func
+            return z3func
+
+    def _z3_rec_func_decl(self, func_name):
+        """Create a Z3 Recursive Function Declaration for the given function."""
+        try:
+            return self._z3_func_decl_cache[func_name]
+        except KeyError:
+            tp = func_name.symbol_type()
+            arity = len(tp.param_types)
+            z3dom = (z3.Sort * arity)()
+            for i, t in enumerate(tp.param_types):
+                z3dom[i] = self._type_to_z3(t).ast
+            z3ret = self._type_to_z3(tp.return_type).ast
+            z3name = z3.Z3_mk_string_symbol(self.ctx.ref(),
+                                            func_name.symbol_name())
+            z3func = z3.Z3_mk_rec_func_decl(self.ctx.ref(), z3name,
+                                        arity, z3dom, z3ret)
+            self._z3_func_decl_cache[func_name] = z3func
+            return z3func
+
+    """_summary_
+        The following are logic relation
+    """
+    
+    def walk_not(self, formula, args, **kwargs):
+        z3term = z3.Z3_mk_not(self.ctx.ref(), args[0])
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
-        
+
     def walk_ite(self, formula, args, **kwargs):
         i = args[0]
         ni = self.walk_not(None, (i,))
@@ -745,40 +824,10 @@ class Z3Converter(Converter, DagWalker):
     
     def walk_numer_ite(self, formula, args, **kwargs):
         return self.walk_ite(formula, args)
-
-    def walk_algebraic_constant(self, formula, **kwargs):
-        rep = str(formula.constant_value())
-        z3term = z3.Z3_mk_numeral(self.ctx.ref(),
-                                  rep,
-                                  self.z3RealSort.ast)
-        z3.Z3_inc_ref(self.ctx.ref(), z3term)
-        return z3term
-
-    def walk_real_constant(self, formula, **kwargs):
-        frac = formula.constant_value()
-        n,d = frac.numerator, frac.denominator
-        rep = str(n) + "/" + str(d)
-        z3term = z3.Z3_mk_numeral(self.ctx.ref(),
-                                  rep,
-                                  self.z3RealSort.ast)
-        z3.Z3_inc_ref(self.ctx.ref(), z3term)
-        return z3term
-
-    def walk_int_constant(self, formula, **kwargs):
-        assert is_pysmt_integer(formula.constant_value())
-        const = str(formula.constant_value())
-        z3term = z3.Z3_mk_numeral(self.ctx.ref(),
-                                  const,
-                                  self.z3IntSort.ast)
-        z3.Z3_inc_ref(self.ctx.ref(), z3term)
-        return z3term
-
-    def walk_bool_constant(self, formula, **kwargs):
-        _t = z3.BoolVal(formula.constant_value(), ctx=self.ctx)
-        z3term = _t.as_ast()
-        z3.Z3_inc_ref(self.ctx.ref(), z3term)
-        return z3term
-
+        
+    """_summary_
+        The following are logic quantifier
+    """
     def walk_quantifier(self, formula, args, **kwargs):
         qvars = formula.quantifier_vars()
         qvars, qvars_sz = self._to_ast_array([self.walk_symbol(x)\
@@ -793,6 +842,33 @@ class Z3Converter(Converter, DagWalker):
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
 
+    """_summary_
+        The following are non-linear arithmetic operations
+    """
+    def walk_even(self, formula, args, **kwargs):
+        z3zero = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(0),
+                                  self.z3IntSort.ast)
+        z3two = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(2),
+                                  self.z3IntSort.ast)
+        z3term = args[0]
+        z3term = z3.Z3_mk_eq(self.ctx.ref(), z3.Z3_mk_mod(self.ctx.ref(), z3term, z3two), z3zero)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+    
+    def walk_prime(self, formula, args, **kwargs):
+        z3one = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(1),
+                                  self.z3IntSort.ast)
+        z3two = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(2),
+                                  self.z3IntSort.ast)
+        z3term = args[0]
+        z3term = z3.Z3_mk_eq(self.ctx.ref(), z3.Z3_mk_mod(self.ctx.ref(), z3term, z3two), z3one)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+    
     def walk_toreal(self, formula, args, **kwargs):
         z3term = z3.Z3_mk_int2real(self.ctx.ref(), args[0])
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
@@ -809,11 +885,21 @@ class Z3Converter(Converter, DagWalker):
         # z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return self.walk_realtoint(formula, args)
     
-    def walk_complex_constant(self, formula, args, **kwargs):
-        real, image = formula.constant_value()
-        z3term = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
+    def walk_sqrt(self, formula, args, **kwargs):
+        z3termfrac12 = z3.Z3_mk_numeral(self.ctx.ref(), "1/2", self.z3RealSort.ast)
+        z3term = z3.Z3_mk_power(self.ctx.ref(), args[0], z3termfrac12)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
     
+    def walk_pi(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support pi")
+
+    def walk_e(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support exponen")
+
+    """_summary_
+    The following are complex arithmetic operations
+    """
     def walk_complex_equals(self, formula, args, **kwargs):
         """ complex_equals of a+bi = c+di """
         a, b = args[0]
@@ -881,63 +967,10 @@ class Z3Converter(Converter, DagWalker):
         z3term = ComplexExpr(real_z3term, image_z3term)
         return z3term
     
-    def _z3_func_decl(self, func_name):
-        """Create a Z3 Function Declaration for the given function."""
-        try:
-            return self._z3_func_decl_cache[func_name]
-        except KeyError:
-            tp = func_name.symbol_type()
-            arity = len(tp.param_types)
-            z3dom = (z3.Sort * arity)()
-            for i, t in enumerate(tp.param_types):
-                z3dom[i] = self._type_to_z3(t).ast
-            z3ret = self._type_to_z3(tp.return_type).ast
-            z3name = z3.Z3_mk_string_symbol(self.ctx.ref(),
-                                            func_name.symbol_name())
-            z3func = z3.Z3_mk_func_decl(self.ctx.ref(), z3name,
-                                        arity, z3dom, z3ret)
-            self._z3_func_decl_cache[func_name] = z3func
-            return z3func
 
-    def _z3_rec_func_decl(self, func_name):
-        """Create a Z3 Recursive Function Declaration for the given function."""
-        try:
-            return self._z3_func_decl_cache[func_name]
-        except KeyError:
-            tp = func_name.symbol_type()
-            arity = len(tp.param_types)
-            z3dom = (z3.Sort * arity)()
-            for i, t in enumerate(tp.param_types):
-                z3dom[i] = self._type_to_z3(t).ast
-            z3ret = self._type_to_z3(tp.return_type).ast
-            z3name = z3.Z3_mk_string_symbol(self.ctx.ref(),
-                                            func_name.symbol_name())
-            z3func = z3.Z3_mk_rec_func_decl(self.ctx.ref(), z3name,
-                                        arity, z3dom, z3ret)
-            self._z3_func_decl_cache[func_name] = z3func
-            return z3func
-
-    def walk_function(self, formula, args, **kwargs):
-        """ Create a Z3 Function Application for the given function. 
-            If the function is recursive, then create a Z3 Recursive Function Application. """
-        func_name = formula.function_name()
-        _args, sz = self._to_ast_array(args)
-        if func_name in self._z3_func_decl_cache:
-            z3func = self._z3_func_decl_cache[func_name]
-        elif str(func_name) in self._rec_funs: # if it is rec funs
-            args, _, expr = self._rec_funs[str(func_name)]
-            z3func = self._z3_rec_func_decl(formula.function_name())
-            body = self.body_walk(expr)
-            new_args = args
-            for (i, a) in enumerate(args):
-                new_args[i] = self.walk_symbol(a)
-            new_args, sz = self._to_ast_array(new_args)
-            z3.Z3_add_rec_def(self.ctx.ref(), z3func, sz, new_args, body)
-        else:
-            z3func = self._z3_func_decl(formula.function_name())
-        z3term = z3.Z3_mk_app(self.ctx.ref(), z3func, sz, _args)
-        z3.Z3_inc_ref(self.ctx.ref(), z3term)
-        return z3term
+    """_summary_
+        MISC. operations
+    """
 
     def walk_bv_constant(self, formula, **kwargs):
         value = formula.constant_value()

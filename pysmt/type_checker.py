@@ -119,7 +119,8 @@ class SimpleTypeChecker(walkers.DagWalker):
         else:
             return None
 
-    @walkers.handles(op.PI, op.LOG, op.SIN, op.COS, op.EXP, op.ASIN, op.ACOS, op.ATAN)
+    @walkers.handles(op.PI, op.E, op.SQRT, op.LOG, op.EXP) 
+    @walkers.handles(op.SIN, op.COS, op.ASIN, op.ACOS, op.ATAN)
     def walk_nra(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         return REAL
