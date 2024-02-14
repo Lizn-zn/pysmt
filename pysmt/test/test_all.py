@@ -15,31 +15,32 @@ def pysmt_solver(statement, solver_name):
     Opt = Optimizer if any(cmd.name in ["maximize", "minimize"] for cmd in script) else Solver
     with Opt(name=solver_name) as opt:
         logs = script.evaluate(opt)
-    return logs
+    return logs[-1]
 
 def test_solver(statement, solver_name):
     """尝试使用指定的求解器解决问题并返回结果。"""
     try:
-        pysmt_solver(statement, solver_name=solver_name)
+        res = pysmt_solver(statement, solver_name=solver_name)
+        print(f"{solver_name.upper()} Pass! Output {res}")
         return True
     except Exception as e:
-        print(f"\n{solver_name} failed with error: {e}")
+        # covert solver_name to upper caption
+        raise e
+        print(f"{solver_name.upper()} failed with error: {e}")
         return False
 
 with open("test_cases.json", "r") as file:
     test_cases = json.load(file)
 
 for idx, case in test_cases.items():
-    print(f"Testing case {idx} with topic '{case['topic']}'...", end=' ')
+    print(f"Testing case {idx} with topic '{case['topic']}'...")
 
-    solvers = ['z3', 'cvc4', 'msat']
+    # solvers = ['z3', 'cvc4', 'msat', 'cvc5']
+    solvers = ['cvc5']
     all_passed = True
 
     for solver in solvers:
-        if not test_solver(case['statement'], solver):
-            all_passed = False
-            break  
+        test_solver(case['statement'], solver)
 
     # 输出测试结果
-    if all_passed:
-        print("all passed")
+    print("="*100)

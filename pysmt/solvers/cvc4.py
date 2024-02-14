@@ -150,7 +150,6 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
             raise SolverReturnedUnknownResultError()
         else:
             return self.res_type == CVC4.Result.SAT
-        return
 
     def push(self, levels=1):
         if not self.options.incremental:
@@ -312,6 +311,11 @@ class CVC4Converter(Converter, DagWalker):
         rep = str(formula.constant_value())
         return self.mkConst(CVC4.Rational(rep))
     
+    def walk_complex_constant(self, formula, **kwargs):
+        real, image = formula.constant_value()
+        rep = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
+        return rep
+    
     def walk_bool_constant(self, formula, **kwargs):
         return self.cvc4_exprMgr.mkBoolConst(formula.constant_value())
 
@@ -429,6 +433,9 @@ class CVC4Converter(Converter, DagWalker):
     
     def walk_pow(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.POW, args[0], args[1])
+    
+    def walk_sqrt(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.SQRT, args[0])
 
     def walk_exp(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.EXPONENTIAL, args[0])
@@ -439,14 +446,16 @@ class CVC4Converter(Converter, DagWalker):
     def walk_toreal(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.TO_REAL, args[0])
     
+    def walk_pi(self, formula, args, **kwargs):
+        raise InternalSolverError("CVC4 does not support pi")
+    
+    def walk_e(self, formula, args, **kwargs):
+        cvc4one = self.mkConst(CVC4.Rational("1"))
+        return self.mkExpr(CVC4.EXPONENTIAL, cvc4one)
+    
     """_summary_
     The following are complex arithmetic operations
     """
-    def walk_complex_constant(self, formula, **kwargs):
-        real, image = formula.constant_value()
-        rep = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
-        return rep
-    
     def walk_complex_equals(self, formula, args, **kwargs):
         """ complex_equals of (a+bi) = (c+di) """
         a, b = args[0]

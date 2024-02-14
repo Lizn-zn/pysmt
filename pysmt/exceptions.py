@@ -103,6 +103,26 @@ class UnsupportedOperatorError(PysmtException):
     def __str__(self):
         return self.message
 
+class DefinitionMissingError(PysmtException):
+    """The definition of a symbol is missing."""
+    def __init__(self, message=None, expression=None):
+        PysmtException.__init__(self)
+        self.message = message
+        self.expression=expression
+
+    def __str__(self):
+        return self.message
+    
+class IllegalGetValueCommand(PysmtException):
+    """The args in get-value command is not supported by the solver."""
+    def __init__(self, message=None, expression=None):
+        PysmtException.__init__(self)
+        self.message = message
+        self.expression=expression
+
+    def __str__(self):
+        return self.message
+    
 
 class SolverAPINotFound(PysmtException):
     """The Python API of the selected solver cannot be found."""

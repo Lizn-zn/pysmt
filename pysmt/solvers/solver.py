@@ -20,7 +20,7 @@ from pysmt.solvers.options import SolverOptions
 from pysmt.decorators import clear_pending_pop
 from pysmt.exceptions import (SolverReturnedUnknownResultError, PysmtValueError,
                               SolverNotConfiguredForUnsatCoresError,
-                              PysmtTypeError, SolverStatusError)
+                              PysmtTypeError, SolverStatusError, IllegalGetValueCommand)
 
 
 class Solver(object):
@@ -257,8 +257,9 @@ class Solver(object):
 
         Raises TypeError.
         """
-        if item.is_symbol() and item.symbol_type().is_function_type():
-            raise PysmtTypeError("Cannot call get_value() on a FunctionType")
+        if not hasattr(item, 'is_symbol') or \
+            (item.is_symbol() and item.symbol_type().is_function_type()):
+            raise IllegalGetValueCommand(f"Cannot call get_value() on a FunctionType: {item}")
 
     def _assert_is_boolean(self, formula):
         """Enforces that argument 'formula' is of type Boolean.

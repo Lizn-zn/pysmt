@@ -192,7 +192,6 @@ class Substituter(pysmt.walkers.IdentityDagWalker):
         `self.substitute(phi, {Plus(a, Int(1)): Int(5)})`
         will give `Equals(Function(f, [Int(2), Int(3)]), Int(6))`
         """
-
         # Check that formula is a term
         if not formula.is_term():
             raise PysmtTypeError("substitute() can only be used on terms.")
@@ -258,7 +257,6 @@ class Substituter(pysmt.walkers.IdentityDagWalker):
                                                         args=args, **kwargs)
         return res
 
-
 class MGSubstituter(Substituter):
     """Performs Most Generic Substitution.
 
@@ -278,7 +276,7 @@ class MGSubstituter(Substituter):
         if res is None:
             res = Substituter.super(self, formula, args=args, **kwargs)
         return res
-
+    
     def walk_forall(self, formula, args, **kwargs):
         substitutions = kwargs['substitutions']
         res = substitutions.get(formula, None)

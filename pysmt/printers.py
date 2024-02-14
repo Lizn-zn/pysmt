@@ -252,6 +252,11 @@ class HRPrinter(TreeWalker):
         yield formula.arg(0)
         self.write(")")
         
+    def walk_sqrt(self, formula):
+        self.write("sqrt(")
+        yield formula.arg(0)
+        self.write(")")
+        
     def walk_log(self, formula):
         self.write("log(")
         yield formula.arg(0)
@@ -297,6 +302,9 @@ class HRPrinter(TreeWalker):
     
     def walk_pi(self, formula):
         self.write("pi")
+        
+    def walk_e(self, formula):
+        self.write("e")
 
     def walk_exp(self, formula):
         self.write("exp(")

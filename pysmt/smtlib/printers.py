@@ -116,6 +116,7 @@ class SmtPrinter(TreeWalker):
     def walk_pow(self, formula): return self.walk_nary(formula, "pow")
     def walk_pi(self, formula): return self.walk_constant(formula, "pi")
     def walk_log(self, formula): return self.walk_nary(formula, "log")
+    def walk_sqrt(self, formula): return self.walk_nary(formula, "sqrt")
     def walk_exp(self, formula): return self.walk_nary(formula, "exp")
     def walk_sin(self, formula): return self.walk_nary(formula, "sin")
     def walk_cos(self, formula): return self.walk_nary(formula, "cos")

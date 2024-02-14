@@ -249,7 +249,6 @@ class FormulaManager(object):
         tuple_args = self._polymorph_args_to_tuple(args)
         if len(tuple_args) == 0:
             raise PysmtTypeError("Cannot create a Times without arguments.")
-
         if len(tuple_args) == 1:
             return tuple_args[0]
         else:
@@ -264,7 +263,10 @@ class FormulaManager(object):
         # if not exponent.is_constant():
             # raise PysmtValueError("The exponent of POW must be a constant.", exponent)
         # if base.is_constant():              
-        return self.create_node(node_type=op.POW, args=(base, exponent))
+        if exponent.is_constant(types.REAL, 1/2):
+            return self.Sqrt(base)
+        else:
+            return self.create_node(node_type=op.POW, args=(base, exponent))
 
     def Div(self, left, right):
         """ Creates an expression of the form: left / right """
@@ -596,7 +598,7 @@ class FormulaManager(object):
     
     def Sqrt(self, formula):
         """ Returns the square root of the formula. """
-        return self.Pow(formula, self.Real((1,2)))
+        return self.create_node(node_type=op.SQRT, args=(formula,))
     
     def Cbrt(self, formula):
         """ Returns the square root of the formula. """
@@ -853,7 +855,7 @@ class FormulaManager(object):
 
     def E(self):
         """ Creates an expression of the form: e """
-        return self.Real(2.71828182846)
+        return self.create_node(node_type=op.E, args=())
 
     def EqualsOrIff(self, left, right):
         """Returns Equals() or Iff() depending on the type of the arguments.
