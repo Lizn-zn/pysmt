@@ -178,7 +178,7 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
 
     @clear_pending_pop
     def define_fun_rec(self, name, args, rtype, expr): 
-        self.converter._rec_funs[name] = (args, rtype, expr) # zenan: lazy define rec_fun
+        self.converter._rec_funcs[name] = (args, rtype, expr) # zenan: lazy define rec_fun
         return None
 
     @clear_pending_pop
@@ -218,7 +218,7 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
             res = self.z3.check(*bool_ass)
         else:
             # zenan 2024.1.10: temply add this to ensure model-add commands appears when having rec_funs
-            if self.converter._rec_funs:
+            if self.converter._rec_funcs:
                 _ = self.z3.check()
                 self.z3.from_string(self.z3.sexpr())
             res = self.z3.check()
@@ -322,7 +322,7 @@ class Z3Converter(Converter, DagWalker):
         self.mgr = environment.formula_manager
         self._get_type = environment.stc.get_type
         self._back_memoization = {}
-        self._rec_funs = {}
+        self._rec_funcs = {}
         self.ctx = z3_ctx
 
         # Back Conversion
@@ -734,13 +734,13 @@ class Z3Converter(Converter, DagWalker):
     def walk_function(self, formula, args, **kwargs):
         """ Create a Z3 Function Application for the given function. 
             If the function is recursive, then create a Z3 Recursive Function Application. """
-        func_name = formula.function_name()
+        func_name = formula.function_name() # this is FNode
         _args, sz = self._to_ast_array(args)
         if func_name in self._z3_func_decl_cache:
             z3func = self._z3_func_decl_cache[func_name]
-        elif str(func_name) in self._rec_funs: # if it is rec funs
-            args, _, expr = self._rec_funs[str(func_name)]
-            z3func = self._z3_rec_func_decl(formula.function_name())
+        elif str(func_name) in self._rec_funcs: # if it is rec funs
+            args, _, expr = self._rec_funcs[str(func_name)]
+            z3func = self._z3_rec_func_decl(func_name)
             body = self.body_walk(expr)
             new_args = args
             for (i, a) in enumerate(args):
@@ -748,7 +748,7 @@ class Z3Converter(Converter, DagWalker):
             new_args, sz = self._to_ast_array(new_args)
             z3.Z3_add_rec_def(self.ctx.ref(), z3func, sz, new_args, body)
         else:
-            z3func = self._z3_func_decl(formula.function_name())
+            z3func = self._z3_func_decl(func_name)
         z3term = z3.Z3_mk_app(self.ctx.ref(), z3func, sz, _args)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term

@@ -35,7 +35,7 @@ from pysmt.exceptions import (SolverReturnedUnknownResultError,
 from pysmt.walkers import DagWalker
 from pysmt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
 from pysmt.solvers.eager import EagerModel
-from pysmt.decorators import catch_conversion_error
+from pysmt.decorators import clear_pending_pop, catch_conversion_error
 from pysmt.constants import Fraction, is_pysmt_integer, to_python_integer
 
 # SEE https://cvc5.github.io/docs/cvc5-1.1.1/api/python/pythonic/pythonic.html
@@ -59,7 +59,9 @@ class CVC5Options(SolverOptions):
         if solver.logic_name == "QF_SLIA":
             self._set_option(solver.cvc5solver,
                              "strings-exp", "true")
-
+        # https://github.com/cvc5/cvc5/issues/5323
+        self._set_option(solver.cvc5solver,
+                         "fmf-fun", "true")
         self._set_option(solver.cvc5solver,
                          "produce-models", str(self.generate_models).lower())
         self._set_option(solver.cvc5solver,
@@ -121,6 +123,12 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
 
     def declare_variable(self, var):
         raise NotImplementedError
+    
+    @clear_pending_pop
+    def define_fun_rec(self, name, args, rtype, expr): 
+        # note that name is str type
+        self.converter._rec_funcs[name] = (args, rtype, expr) # zenan: lazy define rec_fun
+        return None
 
     def add_assertion(self, formula, named=None):
         self._assert_is_boolean(formula)
@@ -128,14 +136,14 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
         self.cvc5solver.assertFormula(term)
         return
 
-    # def get_model(self):
-    #     assignment = {}
-    #     for s in self.environment.formula_manager.get_all_symbols():
-    #         if s.is_term():
-    #             if s.symbol_type().is_custom_type(): continue
-    #             v = self.get_value(s)
-    #             assignment[s] = v
-    #     return EagerModel(assignment=assignment, environment=self.environment)
+    def get_model(self):
+        assignment = {}
+        for s in self.environment.formula_manager.get_all_symbols():
+            if s.is_term():
+                if s.symbol_type().is_custom_type(): continue
+                v = self.get_value(s)
+                assignment[s] = v
+        return EagerModel(assignment=assignment, environment=self.environment)
 
     def solve(self, assumptions=None):
         if assumptions is not None:
@@ -183,7 +191,7 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
     #     return
 
     def get_value(self, item):
-    #     # zenan: catch exception
+        # zenan: catch exception
         self._assert_no_function_type(item)
         term = self.converter.convert(item)
         if isinstance(term, ComplexExpr):
@@ -228,10 +236,11 @@ class CVC5Converter(Converter, DagWalker):
         self.mkVar = cvc5_solver.mkVar
         self.mkFunctionSort = cvc5_solver.mkFunctionSort
         self.mkTerm = cvc5_solver.mkTerm
-
-        self.Kind = cvc5.Kind
+        self.defineFun = cvc5_solver.defineFun
+        self.defineFunRec = cvc5_solver.defineFunRec
         self.mkOp = cvc5_solver.mkOp
         self.mkPi = cvc5_solver.mkPi
+        self.Kind = cvc5.Kind
 
         self.realType = cvc5_solver.getRealSort()
         self.intType = cvc5_solver.getIntegerSort()
@@ -239,6 +248,8 @@ class CVC5Converter(Converter, DagWalker):
         self.stringType = cvc5_solver.getStringSort()
 
         self.declared_vars = {}
+        self._cvc5_func_decl_cache = {}
+        self._rec_funcs = {}
         self._back_memoization = {}
         self.mgr = environment.formula_manager
         self._get_type = environment.stc.get_type
@@ -267,6 +278,16 @@ class CVC5Converter(Converter, DagWalker):
                 decl = self.mkConst(cvc5_type, var.symbol_name())
                 self.declared_vars[var] = decl
 
+    def body_walk(self, formula):
+        """ This is for define-fun-rec
+            we refresh the stack to convert the formula
+        """
+        copy_stack = self.stack
+        self.stack = []
+        z3term = self.walk(formula)
+        self.stack = copy_stack
+        return z3term
+    
     def back(self, expr):
         res = None
         if not expr.hasOp():
@@ -420,11 +441,30 @@ class CVC5Converter(Converter, DagWalker):
         return self.mkBoolean(formula.constant_value())
 
     def walk_function(self, formula, args, **kwargs):
-        name = formula.function_name()
-        if name not in self.declared_vars:
+        """ Create a CVC5 Function Application for the given function. 
+            If the function is recursive, then create a CVC5 Recursive Function Application. """
+        name = formula.function_name() # this is FNode
+        if name in self.declared_vars:
+            decl = self.declared_vars[name]
+        elif str(name) in self._rec_funcs:
+            variables, rtype, expr = self._rec_funcs[str(name)]
+            cvc5func = self._cvc5_rec_func_decl(name)
+            body = self.body_walk(expr) # body_walk introduce bound variables
+            body, var_list = self._rename_bound_variables(body, variables)
+            bound_vars_list = self.mkTerm(self.Kind.VARIABLE_LIST, *var_list)
+            cvc5func = self.defineFunRec(cvc5func, bound_vars_list, body)
+            self.declared_vars[name] = cvc5func
+            decl = self.declared_vars[name]
+        else:
             self.declare_variable(name)
-        decl = self.declared_vars[name]
+            decl = self.declared_vars[name]
         return self.mkTerm(self.Kind.APPLY_UF, decl, *args)
+    
+    def _cvc5_rec_func_decl(self, func_name):
+        """Create a CVC5 Function Declaration for the given function."""
+        self.declare_variable(func_name)
+        decl = self.declared_vars[func_name]
+        return decl        
     
     """_summary_
         The following are logic relation
