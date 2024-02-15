@@ -14,5 +14,9 @@
   "test_idx_3": {
     "topic": "PI",
     "statement": "\n; Declare the variables for the height, radius, and the angle of the staircase\n(declare-fun height () Real)\n(declare-fun radius () Real)\n(declare-fun angle () Real)\n\n; Declare the variable for the length of the handrail\n(declare-fun length () Real)\n\n; Assign the given values\n(assert (= height 10.0))\n(assert (= radius 3.0))\n\n; The angle is given in degrees, convert it to radians as trigonometric functions in SMT-LIB use radians\n; 270 degrees = 270 * pi / 180 radians\n(assert (= angle (* (/ 270.0 180.0) PI)))\n\n; Use the formula for the length of a spiral (helix): sqrt((2*pi*r)^2 + h^2)\n(assert (= length (sqrt (+ (pow (* 2 PI radius) 2) (pow height 2)))))\n\n(check-sat)\n(get-value (length))\n"
+  },
+  "test_idx_4": {
+    "topic": "DEFINE-FUN-REC",
+    "statement": "\n(declare-fun n () Int)\n(declare-fun sum1 () Int)\n(declare-fun sum2 () Int)\n(declare-fun perfect_square () Int)\n\n; Constraints\n(assert (<= n 2008))\n(assert (>= n 1))\n\n; Define the sums of squares\n(define-fun-rec sum_squares ((i Int) (j Int)) Int\n  (ite (<= i j)\n    (+ (* i i) (sum_squares (+ i 1) j))\n    1))\n    \n(assert (= sum1 (sum_squares 1 10)))\n(assert (> sum1 10))\n    \n(check-sat)\n(get-model)\n"
   }
 }
