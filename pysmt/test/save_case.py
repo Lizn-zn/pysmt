@@ -1,28 +1,27 @@
 statement = """
-; Declare the variables for the height, radius, and the angle of the staircase
-(declare-fun height () Real)
-(declare-fun radius () Real)
-(declare-fun angle () Real)
+(declare-fun n () Int)
+(declare-fun sum1 () Int)
+(declare-fun sum2 () Int)
+(declare-fun perfect_square () Int)
 
-; Declare the variable for the length of the handrail
-(declare-fun length () Real)
+; Constraints
+(assert (<= n 2008))
+(assert (>= n 1))
 
-; Assign the given values
-(assert (= height 10.0))
-(assert (= radius 3.0))
-
-; The angle is given in degrees, convert it to radians as trigonometric functions in SMT-LIB use radians
-; 270 degrees = 270 * pi / 180 radians
-(assert (= angle (* (/ 270.0 180.0) PI)))
-
-; Use the formula for the length of a spiral (helix): sqrt((2*pi*r)^2 + h^2)
-(assert (= length (sqrt (+ (pow (* 2 PI radius) 2) (pow height 2)))))
-
+; Define the sums of squares
+(define-fun-rec sum_squares ((i Int) (j Int)) Int
+  (ite (<= i j)
+    (+ (* i i) (sum_squares (+ i 1) j))
+    1))
+    
+(assert (= sum1 (sum_squares 1 10)))
+(assert (> sum1 10))
+    
 (check-sat)
-(get-value (length))
+(get-model)
 """
 
-topic = "PI"
+topic = "DEFINE-FUN-REC"
 
 import json
 ### read json file
