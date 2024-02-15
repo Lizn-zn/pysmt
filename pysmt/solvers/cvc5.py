@@ -157,6 +157,7 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
                 raise InternalSolverError(e)
 
         # Convert returned type
+        self.res_type = res
         if cvc5.Result.isUnknown(res):
             raise SolverReturnedUnknownResultError()
         elif cvc5.Result.isUnsat(res):
@@ -191,7 +192,8 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
     #     return
 
     def get_value(self, item):
-        # zenan: catch exception
+        if not hasattr(self, 'res_type'):
+            raise ModelUnavilableError("model is not available, ensure `check-sat` is executed")
         self._assert_no_function_type(item)
         term = self.converter.convert(item)
         if isinstance(term, ComplexExpr):
@@ -247,7 +249,8 @@ class CVC5Converter(Converter, DagWalker):
         self.boolType = cvc5_solver.getBooleanSort()
         self.stringType = cvc5_solver.getStringSort()
 
-        self.declared_vars = {}
+        self.aux_id = 0 # count for auxiliary variable
+        self.declared_vars = {} 
         self._cvc5_func_decl_cache = {}
         self._rec_funcs = {}
         self._back_memoization = {}
@@ -268,9 +271,9 @@ class CVC5Converter(Converter, DagWalker):
             symbol_type = var.symbol_type()
             if symbol_type.is_complex_type():
                 real_name = sname + "_real"
-                real_decl = self.mkConst(real_name, self.realType)
+                real_decl = self.mkConst(self.realType, real_name)
                 image_name = sname + "_image"
-                image_decl = self.mkVar(image_name, self.realType)
+                image_decl = self.mkConst(self.realType, image_name)
                 decl = ComplexExpr(real_decl, image_decl)
                 self.declared_vars[var] = decl
             else:
@@ -582,6 +585,14 @@ class CVC5Converter(Converter, DagWalker):
 
     def walk_exp(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.EXPONENTIAL, args[0])
+    
+    def walk_log(self, formula, args, **kwargs):
+        # aux_name = "log_aux_" + str(self.aux_id)
+        # log_term = self.mkConst(self.realType, aux_name)
+        # exp_term = self.walk_exp(formula, args=(log_term,))
+        # self.mkTerm(self.Kind.EQUAL, args[0], exp_term)
+        # return log_term
+        raise InternalSolverError("cvc5 does not support logarithmic function")
 
     def walk_sin(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.SINE, args[0])
@@ -886,7 +897,7 @@ class CVC5Converter(Converter, DagWalker):
         elif tp.is_string_type():
             return self.stringType
         elif tp.is_custom_type():
-            return self.self.Kind_exprMgr.mkSort(str(tp))
+            return self.mkSort(str(tp))
         else:
             raise NotImplementedError("Unsupported type: %s" %tp)
 

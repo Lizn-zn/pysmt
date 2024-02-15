@@ -180,7 +180,7 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
     def get_value(self, item):
         # zenan: catch exception
         if not hasattr(self, 'res_type'):
-            raise ModelUnavilableError("model is not available")
+            raise ModelUnavilableError("model is not available, ensure `check-sat` is executed")
         elif self.res_type != CVC4.Result.SAT:
             raise ModelUnsatError("cvc4 returns unsat")
         self._assert_no_function_type(item)
@@ -439,6 +439,10 @@ class CVC4Converter(Converter, DagWalker):
 
     def walk_exp(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.EXPONENTIAL, args[0])
+    
+    def walk_log(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc4 does not support logarithmic function")
+
 
     def walk_sin(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.SINE, args[0])

@@ -262,8 +262,10 @@ class FormulaManager(object):
         """
         # if not exponent.is_constant():
             # raise PysmtValueError("The exponent of POW must be a constant.", exponent)
-        # if base.is_constant():              
-        if exponent.is_constant(types.REAL, 1/2):
+        # if base.is_constant():  
+        if base.is_E():
+            return self.Exp(exponent)
+        elif exponent.is_constant(types.REAL, 1/2):
             return self.Sqrt(base)
         else:
             return self.create_node(node_type=op.POW, args=(base, exponent))

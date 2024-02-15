@@ -360,7 +360,7 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
         self._assert_no_function_type(item)
         titem = self.converter.convert(item)
         if not hasattr(self, 'res_type'):
-            raise ModelUnavilableError("model is not available")
+            raise ModelUnavilableError("model is not available, ensure `check-sat` is executed")
         elif self.res_type != self._msat_lib.MSAT_SAT:
             raise ModelUnsatError("msat returns unsat")
         if isinstance(titem, ComplexExpr):

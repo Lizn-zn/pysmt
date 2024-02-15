@@ -18,5 +18,9 @@
   "test_idx_4": {
     "topic": "DEFINE-FUN-REC",
     "statement": "\n(declare-fun n () Int)\n(declare-fun sum1 () Int)\n(declare-fun sum2 () Int)\n(declare-fun perfect_square () Int)\n\n; Constraints\n(assert (<= n 2008))\n(assert (>= n 1))\n\n; Define the sums of squares\n(define-fun-rec sum_squares ((i Int) (j Int)) Int\n  (ite (<= i j)\n    (+ (* i i) (sum_squares (+ i 1) j))\n    1))\n    \n(assert (= sum1 (sum_squares 1 10)))\n(assert (> sum1 10))\n    \n(check-sat)\n(get-model)\n"
+  },
+  "test_idx_5": {
+    "topic": "FACTORIAL-MAXIMUM-GCD",
+    "statement": "\n(declare-fun factorial (Int) Int)\n\n; Declare a function to compute the GCD (non-executable placeholder)\n(declare-fun gcd (Int Int) Int)\n\n; Define the sequence a_n = n! + n\n(define-fun a_n ((n Int)) Int (+ (factorial n) n))\n\n; We want to find the maximum possible value of the GCD of two consecutive terms a_n and a_(n+1)\n(declare-fun n () Int)\n(declare-fun max_gcd () Int)\n\n; The constraints that n must be a non-negative integer\n(assert (>= n 0))\n\n; The GCD of two consecutive terms\n(assert (= max_gcd (gcd (a_n n) (a_n (+ n 1)))))\n\n; We want to maximize the GCD value\n(maximize max_gcd)\n\n(check-sat)\n(get-value (max_gcd))\n"
   }
 }
