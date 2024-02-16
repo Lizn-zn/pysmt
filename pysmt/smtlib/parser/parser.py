@@ -402,7 +402,7 @@ class SmtLibParser(object):
                             'mul':self._operator_adapter(self._times_or_ctimes),
                             'round': self._operator_adapter(mgr.Round),
                             'to_int':self._operator_adapter(mgr.Round),
-                            'abs': self._operator_adapter(mgr.Abs),
+                            **{abs: self._operator_adapter(mgr.Abs) for abs in ["abs", "ABS"]},
                             'expt': self._operator_adapter(mgr.Pow),
                             'power': self._operator_adapter(mgr.Pow),
                             'exp': self._operator_adapter(lambda formula:mgr.Pow(base=mgr.E(), exponent=formula)),
@@ -490,8 +490,8 @@ class SmtLibParser(object):
                             'as':self._enter_smtlib_as,
                             }
         # pre-defined constant
-        self.constants = {'pi': mgr.PI(), 
-                          'e': mgr.E(), 
+        self.constants = {**{pi: mgr.PI() for pi in ['PI', 'pi', 'Pi']},
+                          'E': mgr.E(), 
                          }
         # Command tokens
         self.commands = {smtcmd.ASSERT : self._cmd_assert,

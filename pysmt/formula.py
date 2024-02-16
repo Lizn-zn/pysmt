@@ -567,15 +567,8 @@ class FormulaManager(object):
 
     def Abs(self, formula):
         """ Absolute value of a formula. """
-        t = self.env.stc.get_type(formula)
-        if t == types.INT:
-            zero = self.Int(0)
-            neg_one = self.Int(-1)
-        else:
-            zero = self.Real(0)
-            neg_one = self.Real(-1)
-        cond = self.GE(formula, zero)
-        return self.Ite(cond, formula, self.Times(neg_one, formula))
+        return self.create_node(node_type=op.ABS,
+                                args=(formula,))
 
     def Sgn(self, formula):
         """ Sign of a formula. """
@@ -1369,7 +1362,6 @@ class FormulaManager(object):
         """
         if not isinstance(idx_type, types.PySMTType):
             raise PysmtTypeError("idx_type is not a valid type: '%s'" % idx_type)
-
         args = [default]
         if assigned_values:
             for k in sorted(assigned_values, key=id):

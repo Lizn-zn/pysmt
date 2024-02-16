@@ -83,7 +83,7 @@ class SimpleTypeChecker(walkers.DagWalker):
         #pylint: disable=unused-argument
         return self.walk_type_to_type(formula, args, REAL, REAL)
 
-    @walkers.handles(op.PLUS, op.MINUS, op.TIMES, op.DIV)
+    @walkers.handles(op.PLUS, op.MINUS, op.TIMES, op.DIV, op.ABS)
     @walkers.handles(op.COMPLEX_PLUS, op.COMPLEX_MINUS, op.COMPLEX_TIMES, op.COMPLEX_DIV)
     def walk_realint_to_realint(self, formula, args, **kwargs):
         #pylint: disable=unused-argument

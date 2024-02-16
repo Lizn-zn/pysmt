@@ -31,7 +31,7 @@ from pysmt.solvers.solver import Solver, Converter, SolverOptions, ComplexExpr
 from pysmt.exceptions import (SolverReturnedUnknownResultError,
                               InternalSolverError,
                               NonLinearError, PysmtValueError, ModelUnsatError, ModelUnavilableError,
-                              PysmtTypeError)
+                              PysmtTypeError, InvalidSetOption)
 from pysmt.walkers import DagWalker
 from pysmt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
 from pysmt.solvers.eager import EagerModel
@@ -100,10 +100,8 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
         elif self.logic_name == "BOOL":
             self.logic_name = "LRA"
         
-
         self.reset_assertions()
         self.converter = CVC4Converter(environment, cvc4_exprMgr=self.em)
-
         return
 
     def reset_assertions(self):
@@ -143,7 +141,6 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
                 res = self.cvc4.checkSat()
             except:
                 raise InternalSolverError()
-
         # Convert returned type
         self.res_type = res.isSat() # zenan: record results in class
         if self.res_type == CVC4.Result.SAT_UNKNOWN:
@@ -210,7 +207,11 @@ class CVC4Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
         :type name: String
         :type value: String
         """
-        self.cvc4.setOption(name, CVC4.SExpr(value))
+        try:
+            self.cvc4.setOption(name, CVC4.SExpr(value))
+        except RuntimeError:
+            raise InvalidSetOption(f"Invalid call to 'setOption' for option {name}, solver is already fully initialized",\
+                                        expression = '%s=%s' % (name,value))
 
 
 
@@ -430,6 +431,9 @@ class CVC4Converter(Converter, DagWalker):
         cvc4mod2 = self.mkExpr(CVC4.INTS_MODULUS, cvc4term, cvc4two)
         cvc4term = self.mkExpr(CVC4.EQUAL, cvc4mod2, cvc4one)
         return cvc4term
+    
+    def walk_abs(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.ABS, args[0])
     
     def walk_pow(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.POW, args[0], args[1])

@@ -55,16 +55,9 @@ class HRPrinter(TreeWalker):
             self.write(ops)
         yield args[-1]
         self.write(")")
-
-    def make_term(self, s):
-        if s.is_constant() and is_pysmt_fraction(s.constant_value()):
-            self.write("(")
-            yield s
-            self.write(")")
-        else:
-            yield s
     
     def walk_term(self, formula, ops):
+        """ Note: add bracket for fraction """
         self.write("(")
         args = formula.args()
         for s in args[:-1]:
@@ -97,7 +90,7 @@ class HRPrinter(TreeWalker):
             self.write(")")
         else:
             yield formula.arg(0)
-
+            
     def walk_not(self, formula):
         self.write("(! ")
         yield formula.arg(0)
@@ -105,8 +98,26 @@ class HRPrinter(TreeWalker):
 
     def walk_symbol(self, formula):
         self.write(quote(formula.symbol_name(), style="'"))
+        
+    def walk_single_input_operator(self, formula, op_name):
+        """ walk single input operator with single argument """
+        self.write(op_name)
+        self.write("(")
+        yield formula.arg(0)
+        self.write(")")
+    
+    def walk_multi_input_operator(self, formula, op_name):
+        """ walk multi input operator with multiple arguments """
+        self.write(op_name)
+        self.write("(")
+        for p in formula.args()[:-1]:
+            yield p
+            self.write(", ")
+        yield formula.args()[-1]
+        self.write(")")
 
     def walk_function(self, formula):
+        """ walk function with multiple arguments """
         yield formula.function_name()
         self.write("(")
         for p in formula.args()[:-1]:
@@ -246,95 +257,6 @@ class HRPrinter(TreeWalker):
         # self.write("RealToInt(")
         yield formula.arg(0)
         # self.write(")")
-
-    def walk_round(self, formula):
-        self.write("round(")
-        yield formula.arg(0)
-        self.write(")")
-        
-    def walk_sqrt(self, formula):
-        self.write("sqrt(")
-        yield formula.arg(0)
-        self.write(")")
-        
-    def walk_log(self, formula):
-        self.write("log(")
-        yield formula.arg(0)
-        self.write(")")
-
-    def walk_gcd(self, formula):
-        self.write("gcd(")
-        for arg in formula.args()[:-1]:
-            yield arg
-            self.write(", ")
-        yield formula.args()[-1]
-        self.write(")")
-    
-    def walk_lcm(self, formula):
-        self.write("lcm(")
-        for arg in formula.args()[:-1]:
-            yield arg
-            self.write(", ")
-        yield formula.args()[-1]
-        self.write(")")
-    
-    def walk_prime(self, formula):
-        self.write("prime(")
-        yield formula.arg(0)
-        self.write(")")
-        
-    def walk_even(self, formula):
-        self.write("even(")
-        yield formula.arg(0)
-        self.write(")")
-    
-    def walk_factorial(self, formula):
-        self.write("factorial(")
-        yield formula.arg(0)
-        self.write(")")
-
-    def walk_binomial(self, formula):
-        self.write("binomial(")
-        yield formula.arg(0)
-        self.write(", ")
-        yield formula.arg(1)
-        self.write(")")
-    
-    def walk_pi(self, formula):
-        self.write("pi")
-        
-    def walk_e(self, formula):
-        self.write("e")
-
-    def walk_exp(self, formula):
-        self.write("exp(")
-        yield formula.arg(0)
-        self.write(")")
-    
-    def walk_sin(self, formula):
-        self.write("sin(")
-        yield formula.arg(0)
-        self.write(")")
-
-    def walk_cos(self, formula):
-        self.write("cos(")
-        yield formula.arg(0)
-        self.write(")")
-
-    def walk_asin(self, formula):
-        self.write("asin(")
-        yield formula.arg(0)
-        self.write(")")
-
-    def walk_acos(self, formula):
-        self.write("acos(")
-        yield formula.arg(0)
-        self.write(")")
-
-    def walk_atan(self, formula):
-        self.write("atan(")
-        yield formula.arg(0)
-        self.write(")")
 
     def walk_str_constant(self, formula):
         assert (type(formula.constant_value()) == str ), \
@@ -486,6 +408,24 @@ class HRPrinter(TreeWalker):
     def walk_bv_lshr(self, formula): return self.walk_nary(formula, " >> ")
     def walk_bv_ashr(self, formula): return self.walk_nary(formula, " a>> ")
     def walk_bv_comp(self, formula): return self.walk_nary(formula, " bvcomp ")
+    def walk_round(self, formula): return self.walk_single_input_operator(formula, 'round')
+    def walk_abs(self, formula): return self.walk_single_input_operator(formula, 'abs')
+    def walk_sqrt(self, formula): return self.walk_single_input_operator(formula, 'sqrt')
+    def walk_prime(self, formula): return self.walk_single_input_operator(formula, "prime")
+    def walk_even(self, formula): return self.walk_single_input_operator(formula, "even")
+    def walk_exp(self, formula): return self.walk_single_input_operator(formula, "exp")
+    def walk_sin(self, formula): return self.walk_single_input_operator(formula, "sin")
+    def walk_cos(self, formula): return self.walk_single_input_operator(formula, "cos")
+    def walk_asin(self, formula): return self.walk_single_input_operator(formula, "asin")
+    def walk_acos(self, formula): return self.walk_single_input_operator(formula, "acos")
+    def walk_atan(self, formula): return self.walk_single_input_operator(formula, "atan")
+    def walk_fractorial(self, formula): return self.walk_single_input_operator(formula, "fractorial")
+    def walk_log(self, formula): return self.walk_single_input_operator(formula, "log")
+    def walk_gcd(self, formula): return self.walk_multi_input_operator(formula, "gcd")
+    def walk_lcm(self, formula): return self.walk_multi_input_operator(formula, "lcm")
+    def walk_binomial(self, formula): return self.walk_multi_input_operator(formula, "binomial")
+    def walk_pi(self, formula): self.write("pi")
+    def walk_e(self, formula): self.write("e")
     walk_bv_and = walk_and
     walk_bv_or = walk_or
     walk_bv_not = walk_not

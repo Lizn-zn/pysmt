@@ -46,7 +46,7 @@ from pysmt.exceptions import (SolverReturnedUnknownResultError, ModelUnavilableE
                               ConvertExpressionError,
                               UndefinedSymbolError, PysmtValueError,
                               PysmtInfinityError, PysmtInfinitesimalError,
-                              PysmtUnboundedOptimizationError)
+                              PysmtUnboundedOptimizationError, ModelUnsatError)
 from pysmt.decorators import clear_pending_pop, catch_conversion_error
 from pysmt.logics import LRA, LIA, QF_UFLRA, QF_UFLIA, PYSMT_LOGICS
 from pysmt.oracles import get_logic
@@ -230,6 +230,8 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
         assert sres in ['unknown', 'sat', 'unsat']
         if sres == 'unknown':
             raise SolverReturnedUnknownResultError
+        elif sres == 'unsat':
+            raise ModelUnsatError("z3 returns unsat")
         return (sres == 'sat')
 
     def get_unsat_core(self):
@@ -893,6 +895,16 @@ class Z3Converter(Converter, DagWalker):
     def walk_sqrt(self, formula, args, **kwargs):
         z3termfrac12 = z3.Z3_mk_numeral(self.ctx.ref(), "1/2", self.z3RealSort.ast)
         z3term = z3.Z3_mk_power(self.ctx.ref(), args[0], z3termfrac12)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+    
+    def walk_abs(self, formula, args, **kwargs):
+        z3zero = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(0),
+                                  self.z3IntSort.ast)
+        cond = z3.Z3_mk_ge(self.ctx.ref(), args[0], z3zero)
+        z3negarg = z3.Z3_mk_unary_minus(self.ctx.ref(), args[0])
+        z3term = z3.Z3_mk_ite(self.ctx.ref(), cond, args[0], z3negarg)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
     

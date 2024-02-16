@@ -958,6 +958,14 @@ class MSatConverter(Converter, DagWalker):
     """_summary_
         The following are non-linear arithmetic operations
     """
+    def walk_abs(self, formula, args, **kwargs):
+        msat_zero = self._msat_lib.msat_make_number(self.msat_env(), "0")
+        msat_negone = self._msat_lib.msat_make_number(self.msat_env(), "-1")
+        msat_negarg = self._msat_lib.msat_make_times(self.msat_env(), msat_negone, args[0])
+        cond = self._msat_lib.msat_make_leq(self.msat_env(), msat_zero, args[0])
+        msat_term = self.walk_ite(formula, (cond, args[0], msat_negarg))
+        return msat_term
+        
     def walk_pow(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_pow(self.msat_env(),
                                     args[0], args[1])

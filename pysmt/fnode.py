@@ -655,7 +655,7 @@ class FNode(object):
     def array_value_index_type(self):
         assert self.is_array_value()
         return self._content.payload
-
+    
     def array_value_get(self, index):
         """Returns the value of this Array Value at the given index. The
         index must be a constant of the correct type.
