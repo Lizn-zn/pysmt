@@ -31,7 +31,7 @@ from pysmt.solvers.solver import Solver, Converter, SolverOptions, ComplexExpr
 from pysmt.exceptions import (SolverReturnedUnknownResultError,
                               InternalSolverError,
                               NonLinearError, PysmtValueError, ModelUnsatError, ModelUnavilableError,
-                              PysmtTypeError)
+                              PysmtTypeError, InvalidSetOption)
 from pysmt.walkers import DagWalker
 from pysmt.solvers.smtlib import SmtLibBasicSolver, SmtLibIgnoreMixin
 from pysmt.solvers.eager import EagerModel
@@ -157,6 +157,7 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
                 raise InternalSolverError(e)
 
         # Convert returned type
+        self.res_type = res
         if cvc5.Result.isUnknown(res):
             raise SolverReturnedUnknownResultError()
         elif cvc5.Result.isUnsat(res):
@@ -191,7 +192,8 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
     #     return
 
     def get_value(self, item):
-        # zenan: catch exception
+        if not hasattr(self, 'res_type'):
+            raise ModelUnavilableError("model is not available, ensure `check-sat` is executed")
         self._assert_no_function_type(item)
         term = self.converter.convert(item)
         if isinstance(term, ComplexExpr):
@@ -219,8 +221,11 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
         :type name: String
         :type value: String
         """
-        self.cvc5.setOption(name, value)
-
+        try:
+            self.cvc5solver.setOption(name, value)
+        except RuntimeError:
+            raise InvalidSetOption(f"Invalid call to 'setOption' for option {name}, solver is already fully initialized",\
+                                            expression = '%s=%s' % (name,value))
 
 
 class CVC5Converter(Converter, DagWalker):
@@ -233,8 +238,10 @@ class CVC5Converter(Converter, DagWalker):
         self.mkInteger = cvc5_solver.mkInteger
         self.mkBoolean = cvc5_solver.mkBoolean
         self.mkBitVector = cvc5_solver.mkBitVector
+        self.mkString = cvc5_solver.mkString
         self.mkVar = cvc5_solver.mkVar
         self.mkFunctionSort = cvc5_solver.mkFunctionSort
+        self.mkArraySort = cvc5_solver.mkArraySort
         self.mkTerm = cvc5_solver.mkTerm
         self.defineFun = cvc5_solver.defineFun
         self.defineFunRec = cvc5_solver.defineFunRec
@@ -247,7 +254,8 @@ class CVC5Converter(Converter, DagWalker):
         self.boolType = cvc5_solver.getBooleanSort()
         self.stringType = cvc5_solver.getStringSort()
 
-        self.declared_vars = {}
+        self.aux_id = 0 # count for auxiliary variable
+        self.declared_vars = {} 
         self._cvc5_func_decl_cache = {}
         self._rec_funcs = {}
         self._back_memoization = {}
@@ -268,9 +276,9 @@ class CVC5Converter(Converter, DagWalker):
             symbol_type = var.symbol_type()
             if symbol_type.is_complex_type():
                 real_name = sname + "_real"
-                real_decl = self.mkConst(real_name, self.realType)
+                real_decl = self.mkConst(self.realType, real_name)
                 image_name = sname + "_image"
-                image_decl = self.mkVar(image_name, self.realType)
+                image_decl = self.mkConst(self.realType, image_name)
                 decl = ComplexExpr(real_decl, image_decl)
                 self.declared_vars[var] = decl
             else:
@@ -311,87 +319,7 @@ class CVC5Converter(Converter, DagWalker):
             res = self._back_memoization[expr.getId()]
         # raise PysmtTypeError("Unsupported expression: %s" % expr)
         return res
-        
     
-    def _back_single_term(self, expr, args):
-        if expr.hasOp(): # detect complex expressions
-            args = [self.mgr.ToReal(a) for a in args if a is not None]
-        if expr.isBooleanValue():
-            v = expr.getBooleanValue()
-            res = self.mgr.Bool(v)
-        elif expr.isIntegerValue():
-            v = expr.getIntegerValue()
-            res = self.mgr.Int(int(v))
-        elif expr.isRealValue():
-            v = str(expr.getRealValue())
-            res = self.mgr.Real(Fraction(v))
-        elif expr.isBitVectorValue():
-            bv = expr.getBitVectorValue().toString()
-            width = bv.getSize()
-            res = self.mgr.BV(int(v), width)
-        elif expr.isStringValue():
-            v = expr.getStringValue().toString()
-            res = self.mgr.String(v)
-        elif expr.isConstArray():
-            const_ = expr.getConstArrayBase()
-            array_type = self._cvc5_type_to_type(const_.getType())
-            base_value = self.back(const_)
-            res = self.mgr.Array(array_type.index_type,
-                                    base_value)
-        elif expr.getKind() == self.Kind.PI:
-            res = self.mgr.PI()
-        elif expr.getKind() == self.Kind.APPLY_UF:
-            decl = expr.getOperator()
-            decl_name = decl.toString()
-            if decl_name in self.declared_vars:
-                decl = self.declared_vars[decl_name]
-            else:
-                decl_type = decl.getSort()
-                decl_type = self._cvc5_type_to_type(decl_type)
-                decl = self.mgr.Symbol(decl_name, decl_type)
-                self.declared_vars[decl_name] = decl
-            res = self.mgr.Function(decl, args)
-        elif expr.getKind() == self.Kind.ITE:
-            res = self.mgr.Ite(args[0], args[1], args[2])
-        elif expr.getKind() == self.Kind.EQUAL:
-            res = self.mgr.Equals(args[0], args[1])
-        elif expr.getKind() == self.Kind.DISTINCT:
-            res = self.mgr.Distinct(args)
-        elif expr.getKind() == self.Kind.AND:
-            res = self.mgr.And(args)
-        elif expr.getKind() == self.Kind.OR:
-            res = self.mgr.Or(args)
-        elif expr.getKind() == self.Kind.NOT:
-            res = self.mgr.Not(args[0])
-        elif expr.getKind() == self.Kind.IMPLIES:
-            res = self.mgr.Implies(args[0], args[1])
-        elif expr.getKind() == self.Kind.LEQ:
-            res = self.mgr.LE(args[0], args[1])
-        elif expr.getKind() == self.Kind.LT:
-            res = self.mgr.LT(args[0], args[1])
-        elif expr.getKind() == self.Kind.GEQ:
-            res = self.mgr.GE(args[0], args[1])
-        elif expr.getKind() == self.Kind.GT:
-            res = self.mgr.GT(args[0], args[1])
-        elif expr.getKind() == self.Kind.ADD:
-            res = self.mgr.Plus(args)
-        elif expr.getKind() == self.Kind.SUB:
-            res = self.mgr.Minus(args[0], args[1])
-        elif expr.getKind() == self.Kind.MULT:
-            res = self.mgr.Times(args)
-        elif expr.getKind() == self.Kind.DIVISION:
-            res = self.mgr.Div(args[0], args[1])
-        elif expr.getKind() == self.Kind.POW:
-            res = self.mgr.Pow(args[0], args[1])
-        elif expr.getKind() == self.Kind.SQRT:
-            res = self.mgr.Sqrt(args[0])
-        elif expr.getKind() == self.Kind.INTERNAL_KIND:
-            op = self.parse_op(expr)
-            return op(*args)
-        else:
-            raise PysmtTypeError(f"Unsupported expression: {expr}, whose Sort is {expr.getSort()} Kind is {expr.getKind()}")        
-        return res
-
     def parse_op(self, expr):
         str_expr = str(expr)
         str_op = str_expr.split(" ")[0][1:]
@@ -405,6 +333,126 @@ class CVC5Converter(Converter, DagWalker):
             return self.mgr.Div
         else:
             raise PysmtTypeError(f"Unsupported operator {str_op} in the expression: {expr}")
+        
+    def _back_fun(self, op, args, fix_real=[]):
+        """ This is a helper function to handle the case when some variables should be converted to real
+            fix_real is a index list to determine which arg to be converted
+        """
+        try:
+            res = op(*args)
+        except PysmtTypeError:
+            if fix_real == []:
+                args = [self.mgr.ToReal(a) for a in args if a is not None]
+                res = op(*args)
+            else:
+                args = [self.mgr.ToReal(a) if i in fix_real else a for i,a in enumerate(args)]
+                res = op(*args)
+        return res
+            
+    def _back_single_term(self, expr, args):
+        if expr.isBooleanValue():
+            v = expr.getBooleanValue()
+            res = self.mgr.Bool(v)
+        elif expr.isIntegerValue():
+            v = expr.getIntegerValue()
+            res = self.mgr.Int(int(v))
+        elif expr.isRealValue():
+            v = str(expr.getRealValue())
+            res = self.mgr.Real(Fraction(v))
+        elif expr.isBitVectorValue():
+            bv = expr.getBitVectorValue()
+            width = bv.getSize()
+            res = self.mgr.BV(int(v), width)
+        elif expr.isStringValue():
+            v = expr.getStringValue()
+            res = self.mgr.String(v)
+        elif expr.isConstArray():
+            const_ = expr.getConstArrayBase()
+            array_type = self._cvc5_type_to_type(expr.getSort())
+            if array_type.elem_type == types.INT:
+                val = int(const_.getIntegerValue())
+                base_value = self.mgr.Int(val)
+            elif array_type.elem_type == types.REAL:
+                val = str(const_.getRealValue())
+                base_value = self.mgr.Real(Fraction(val))
+            else:
+                raise PysmtTypeError(f"Unsupported array element type: {array_type.elem_type}")
+            res = self.mgr.Array(array_type.index_type, base_value)
+        elif expr.getKind() == self.Kind.APPLY_UF:
+            decl = expr.getOperator()
+            decl_name = decl.toString()
+            if decl_name in self.declared_vars:
+                decl = self.declared_vars[decl_name]
+            else:
+                decl_type = decl.getSort()
+                decl_type = self._cvc5_type_to_type(decl_type)
+                decl = self.mgr.Symbol(decl_name, decl_type)
+                self.declared_vars[decl_name] = decl
+            res = self.mgr.Function(decl, args)
+        ## The following are the conversion of the operators
+        elif expr.getKind() == self.Kind.PI:
+            op = self.mgr.PI
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.ITE:
+            op = self.mgr.Ite
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.EQUAL:
+            op = self.mgr.Equals
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.DISTINCT:
+            op = self.mgr.Distinct
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.AND:
+            op = self.mgr.And
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.OR:
+            op = self.mgr.Or
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.NOT:
+            op = self.mgr.Not
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.IMPLIES:
+            op = self.mgr.Implies
+            res = self._back_fun(op, args, fix_real=[1,2])
+        elif expr.getKind() == self.Kind.LEQ:
+            op = self.mgr.LE
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.LT:
+            op = self.mgr.LT
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.GEQ:
+            op = self.mgr.GE
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.GT:
+            op = self.mgr.GT
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.ADD:
+            op = self.mgr.Plus
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.SUB:
+            op = self.mgr.Minus
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.MULT:
+            op = self.mgr.Times
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.DIVISION:
+            op = self.mgr.Div
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.POW:
+            op = self.mgr.Pow
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.SQRT:
+            op = self.mgr.Sqrt
+            res = self._back_fun(op, args)
+        elif expr.getKind() == self.Kind.STORE:
+            op = self.mgr.Store 
+            res = self._back_fun(op, args, fix_real=[2]) # the third arg is the set value of array
+        elif expr.getKind() == self.Kind.INTERNAL_KIND:
+            op = self.parse_op(expr)
+            res = self._back_fun(op, args)
+        else:
+            raise PysmtTypeError(f"Unsupported expression: {expr}, whose Sort is {expr.getSort()} Kind is {expr.getKind()}")        
+        return res
 
     @catch_conversion_error
     def convert(self, formula):
@@ -574,6 +622,9 @@ class CVC5Converter(Converter, DagWalker):
         self.Kindterm = self.mkTerm(self.Kind.EQUAL, self.Kindmod2, self.Kindone)
         return self.Kindterm
     
+    def walk_abs(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.ABS, args[0])
+    
     def walk_pow(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.POW, args[0], args[1])
     
@@ -582,6 +633,14 @@ class CVC5Converter(Converter, DagWalker):
 
     def walk_exp(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.EXPONENTIAL, args[0])
+    
+    def walk_log(self, formula, args, **kwargs):
+        # aux_name = "log_aux_" + str(self.aux_id)
+        # log_term = self.mkConst(self.realType, aux_name)
+        # exp_term = self.walk_exp(formula, args=(log_term,))
+        # self.mkTerm(self.Kind.EQUAL, args[0], exp_term)
+        # return log_term
+        raise InternalSolverError("cvc5 does not support logarithmic function")
 
     def walk_sin(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.SINE, args[0])
@@ -830,7 +889,7 @@ class CVC5Converter(Converter, DagWalker):
         return self.mkTerm(self.Kind.BITVECTOR_ASHR, args[0], args[1])
 
     def walk_str_constant(self, formula, args, **kwargs):
-        return self.mkConst(self.Kind.self.KindString(formula.constant_value()))
+        return self.mkString(formula.constant_value())
 
     def walk_str_length (self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.STRING_LENGTH , args[0])
@@ -880,13 +939,13 @@ class CVC5Converter(Converter, DagWalker):
             # Recursively convert the types of index and elem
             idx_cvc_type = self._type_to_cvc5(tp.index_type)
             elem_cvc_type = self._type_to_cvc5(tp.elem_type)
-            return self.mkArrayType(idx_cvc_type, elem_cvc_type)
+            return self.mkArraySort(idx_cvc_type, elem_cvc_type)
         elif tp.is_bv_type():
             return self.mkBitVectorType(tp.width)
         elif tp.is_string_type():
             return self.stringType
         elif tp.is_custom_type():
-            return self.self.Kind_exprMgr.mkSort(str(tp))
+            return self.mkSort(str(tp))
         else:
             raise NotImplementedError("Unsupported type: %s" %tp)
 
@@ -899,10 +958,9 @@ class CVC5Converter(Converter, DagWalker):
             return types.REAL
         elif type_.isArray():
             # Casting Type into ArrayType
-            type_ = self.Kind.ArrayType(type_)
             # Recursively convert the types of index and elem
-            idx_type = self._self.Kind_type_to_type(type_.getIndexType())
-            elem_type = self._self.Kind_type_to_type(type_.getConstituentType())
+            idx_type = self._cvc5_type_to_type(type_.getArrayIndexSort())
+            elem_type = self._cvc5_type_to_type(type_.getArrayElementSort())
             return types.ArrayType(idx_type, elem_type)
         elif type_.isBitVector():
             # Casting Type into BitVectorType

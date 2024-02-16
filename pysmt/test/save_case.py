@@ -1,27 +1,14 @@
 statement = """
-(declare-fun n () Int)
-(declare-fun sum1 () Int)
-(declare-fun sum2 () Int)
-(declare-fun perfect_square () Int)
+(declare-fun A () Int)
 
-; Constraints
-(assert (<= n 2008))
-(assert (>= n 1))
+(assert (< A 0))
+(assert (= (abs A) 100))
 
-; Define the sums of squares
-(define-fun-rec sum_squares ((i Int) (j Int)) Int
-  (ite (<= i j)
-    (+ (* i i) (sum_squares (+ i 1) j))
-    1))
-    
-(assert (= sum1 (sum_squares 1 10)))
-(assert (> sum1 10))
-    
 (check-sat)
-(get-model)
+(get-value (A))
 """
 
-topic = "DEFINE-FUN-REC"
+topic = "ABS"
 
 import json
 ### read json file

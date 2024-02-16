@@ -18,5 +18,21 @@
   "test_idx_4": {
     "topic": "DEFINE-FUN-REC",
     "statement": "\n(declare-fun n () Int)\n(declare-fun sum1 () Int)\n(declare-fun sum2 () Int)\n(declare-fun perfect_square () Int)\n\n; Constraints\n(assert (<= n 2008))\n(assert (>= n 1))\n\n; Define the sums of squares\n(define-fun-rec sum_squares ((i Int) (j Int)) Int\n  (ite (<= i j)\n    (+ (* i i) (sum_squares (+ i 1) j))\n    1))\n    \n(assert (= sum1 (sum_squares 1 10)))\n(assert (> sum1 10))\n    \n(check-sat)\n(get-model)\n"
+  },
+  "test_idx_5": {
+    "topic": "FACTORIAL-MAXIMUM-GCD",
+    "statement": "\n(declare-fun factorial (Int) Int)\n\n; Declare a function to compute the GCD (non-executable placeholder)\n(declare-fun gcd (Int Int) Int)\n\n; Define the sequence a_n = n! + n\n(define-fun a_n ((n Int)) Int (+ (factorial n) n))\n\n; We want to find the maximum possible value of the GCD of two consecutive terms a_n and a_(n+1)\n(declare-fun n () Int)\n(declare-fun max_gcd () Int)\n\n; The constraints that n must be a non-negative integer\n(assert (>= n 0))\n\n; The GCD of two consecutive terms\n(assert (= max_gcd (gcd (a_n n) (a_n (+ n 1)))))\n\n; We want to maximize the GCD value\n(maximize max_gcd)\n\n(check-sat)\n(get-value (max_gcd))\n"
+  },
+  "test_idx_6": {
+    "topic": "STRING",
+    "statement": "\n; Declare constants for the pattern length and the total number of beads\n(declare-const pattern_length Int)\n(declare-const total_beads Int)\n(declare-const last_bead_position Int)\n(declare-const last_bead_color String)\n\n; The pattern length is 6 (red, orange, yellow, yellow, green, blue)\n(assert (= pattern_length 6))\n\n; The total number of beads is 74\n(assert (= total_beads 74))\n\n; Calculate the position of the last bead in the pattern\n(assert (= last_bead_position (mod (- total_beads 1) pattern_length)))\n\n; Determine the color of the last bead based on its position in the pattern\n(assert (ite (= last_bead_position 0) (= last_bead_color \"blue\")\n        (ite (= last_bead_position 1) (= last_bead_color \"red\")\n        (ite (= last_bead_position 2) (= last_bead_color \"orange\")\n        (ite (= last_bead_position 3) (= last_bead_color \"yellow\")\n        (ite (= last_bead_position 4) (= last_bead_color \"yellow\")\n        (ite (= last_bead_position 5) (= last_bead_color \"green\")\n        true))))))) ; this line for the completeness of the ite conditions\n\n; Check satisfiability and get the color of the last bead\n(check-sat)\n(get-value (last_bead_color))\n"
+  },
+  "test_idx_7": {
+    "topic": "ARRAY-SELECT",
+    "statement": "\n(declare-fun v1 () (Array Int Real))\n(declare-fun v2 () (Array Int Real))\n\n; Define the vectors\n(assert (= (select v1 0) -5.2))\n(assert (= (select v1 1) 1))\n(assert (= (select v2 0) 2))\n(assert (= (select v2 1) 3))\n\n; Get the values of p\n(check-sat)\n(get-model)\n"
+  },
+  "test_idx_8": {
+    "topic": "ABS",
+    "statement": "\n(declare-fun A () Int)\n\n(assert (< A 0))\n(assert (= (abs A) 100))\n\n(check-sat)\n(get-value (A))\n"
   }
 }

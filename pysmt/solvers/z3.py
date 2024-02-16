@@ -40,13 +40,13 @@ from pysmt.optimization.optimizer import Optimizer, SUAOptimizerMixin, Increment
 from pysmt.solvers.interpolation import Interpolator
 
 from pysmt.walkers import DagWalker
-from pysmt.exceptions import (SolverReturnedUnknownResultError,
+from pysmt.exceptions import (SolverReturnedUnknownResultError, ModelUnavilableError,
                               SolverNotConfiguredForUnsatCoresError,
                               SolverStatusError,
                               ConvertExpressionError,
                               UndefinedSymbolError, PysmtValueError,
                               PysmtInfinityError, PysmtInfinitesimalError,
-                              PysmtUnboundedOptimizationError)
+                              PysmtUnboundedOptimizationError, ModelUnsatError)
 from pysmt.decorators import clear_pending_pop, catch_conversion_error
 from pysmt.logics import LRA, LIA, QF_UFLRA, QF_UFLIA, PYSMT_LOGICS
 from pysmt.oracles import get_logic
@@ -217,16 +217,21 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
                 self.pending_pop = True
             res = self.z3.check(*bool_ass)
         else:
-            # zenan 2024.1.10: temply add this to ensure model-add commands appears when having rec_funs
+            """
+            temply add this to ensure `model-add` commands appears when having rec_funs
+            """
             if self.converter._rec_funcs:
                 _ = self.z3.check()
                 self.z3.from_string(self.z3.sexpr())
             res = self.z3.check()
 
         sres = str(res)
+        self.res_type = sres
         assert sres in ['unknown', 'sat', 'unsat']
         if sres == 'unknown':
             raise SolverReturnedUnknownResultError
+        elif sres == 'unsat':
+            raise ModelUnsatError("z3 returns unsat")
         return (sres == 'sat')
 
     def get_unsat_core(self):
@@ -289,6 +294,8 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
                 print("%s = %s" % (var.symbol_name(), self.get_value(var)))
 
     def get_value(self, item):
+        if not hasattr(self, 'res_type'):
+            raise ModelUnavilableError("model is not available, ensure `check-sat` is executed")
         self._assert_no_function_type(item)
         titem = self.converter.convert(item)
         if isinstance(titem, ComplexExpr):
@@ -890,6 +897,22 @@ class Z3Converter(Converter, DagWalker):
         z3term = z3.Z3_mk_power(self.ctx.ref(), args[0], z3termfrac12)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
+    
+    def walk_abs(self, formula, args, **kwargs):
+        z3zero = z3.Z3_mk_numeral(self.ctx.ref(),
+                                  str(0),
+                                  self.z3IntSort.ast)
+        cond = z3.Z3_mk_ge(self.ctx.ref(), args[0], z3zero)
+        z3negarg = z3.Z3_mk_unary_minus(self.ctx.ref(), args[0])
+        z3term = z3.Z3_mk_ite(self.ctx.ref(), cond, args[0], z3negarg)
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
+    
+    def walk_exp(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support exponential")
+    
+    def walk_log(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support logarithmic function")
     
     def walk_pi(self, formula, args, **kwargs):
         raise InternalSolverError("Z3 does not support pi")

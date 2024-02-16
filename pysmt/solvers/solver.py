@@ -259,7 +259,7 @@ class Solver(object):
         """
         if not hasattr(item, 'is_symbol') or \
             (item.is_symbol() and item.symbol_type().is_function_type()):
-            raise IllegalGetValueCommand(f"Cannot call get_value() on a FunctionType: {item}")
+            raise IllegalGetValueCommand(f"Cannot call get_value() on a FunctionType: {item}", expression=item)
 
     def _assert_is_boolean(self, formula):
         """Enforces that argument 'formula' is of type Boolean.

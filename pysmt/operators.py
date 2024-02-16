@@ -24,7 +24,7 @@ these operators.
 from itertools import chain
 
 
-ALL_TYPES = list(range(0,94))
+ALL_TYPES = list(range(0,95))
 
 (
 FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF, # Boolean Logic (0-6)
@@ -76,40 +76,41 @@ ARRAY_STORE,                                # Array Store (61)
 ARRAY_VALUE,                                # Array Value (62)
 
 DIV,                                        # Arithmetic Division (63)
-POW,                                        # Arithmetic Power (64)
-SQRT,                                       # Arithmetic Square Root (65)
-ALGEBRAIC_CONSTANT,                         # Algebraic Number (66)
-BV_TONATURAL,                               # BV to Natural Conversion (67)
-REALTOINT,                                  # Real to Integer Conversion (68)
-LOG,                                        # Logarithm (69)
-MOD,                                        # Modulo (70)
-INTDIV,                                     # Integer Division (71)
-ROUND,                                      # Rounding (72)
+ABS,                                        # Arithmetic Absolute (64)
+POW,                                        # Arithmetic Power (65)
+SQRT,                                       # Arithmetic Square Root (66)
+ALGEBRAIC_CONSTANT,                         # Algebraic Number (67)
+BV_TONATURAL,                               # BV to Natural Conversion (68)
+REALTOINT,                                  # Real to Integer Conversion (69)
+LOG,                                        # Logarithm (70)
+MOD,                                        # Modulo (71)
+INTDIV,                                     # Integer Division (72)
+ROUND,                                      # Rounding (73)
 
-EXP,                                        # Exponential (73)
-SIN,                                        # Sine (74)
-COS,                                        # Cosine (75)
-PI,                                         # Pi (76)
-E,                                          # Euler's number (77)
+EXP,                                        # Exponential (74)
+SIN,                                        # Sine (75)
+COS,                                        # Cosine (76)
+PI,                                         # Pi (77)
+E,                                          # Euler's number (78)
 
-GCD,                                        # Greatest Common Divisor (78)
-LCM,                                        # Least Common Multiple (79)
-PRIME,                                      # Prime (80)
-EVEN,                                       # Even (81)
-FACTORIAL,                                  # Factorial (82)
-BINOMIAL,                                   # Binomial (83)
+GCD,                                        # Greatest Common Divisor (79)
+LCM,                                        # Least Common Multiple (80)
+PRIME,                                      # Prime (81)
+EVEN,                                       # Even (82)
+FACTORIAL,                                  # Factorial (83)
+BINOMIAL,                                   # Binomial (84)
 
-ASIN,                                       # Arc Sine (84)
-ACOS,                                       # Arc Cosine (85)
-ATAN,                                       # Arc Tangent (86)
+ASIN,                                       # Arc Sine (85)
+ACOS,                                       # Arc Cosine (86)
+ATAN,                                       # Arc Tangent (87)
 
-COMPLEX_VARIABLE,                           # Complex Number (87)
-COMPLEX_CONSTANT,                           # Complex Constant (88)
-COMPLEX_EQUALS,                             # Complex Equals (89)
-COMPLEX_PLUS,                               # Complex Plus (90)
-COMPLEX_MINUS,                              # Complex Minus (91)
-COMPLEX_TIMES,                              # Complex Times (92)
-COMPLEX_DIV,                                # Complex Division (93)
+COMPLEX_VARIABLE,                           # Complex Number (88)
+COMPLEX_CONSTANT,                           # Complex Constant (89)
+COMPLEX_EQUALS,                             # Complex Equals (90)
+COMPLEX_PLUS,                               # Complex Plus (91)
+COMPLEX_MINUS,                              # Complex Minus (92)
+COMPLEX_TIMES,                              # Complex Times (93)
+COMPLEX_DIV,                                # Complex Division (94)
 ) = ALL_TYPES
 
 QUANTIFIERS = frozenset([FORALL, EXISTS])
@@ -141,7 +142,7 @@ BV_OPERATORS = frozenset([BV_NOT, BV_AND, BV_OR, BV_XOR,
 STR_OPERATORS = frozenset([STR_LENGTH, STR_CONCAT, STR_INDEXOF, STR_REPLACE,
                            STR_SUBSTR, STR_CHARAT, STR_TO_INT, INT_TO_STR,])
 
-IRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, POW, SQRT, BV_TONATURAL,
+IRA_OPERATORS = frozenset([PLUS, MINUS, TIMES, TOREAL, DIV, ABS, POW, SQRT, BV_TONATURAL,
                           REALTOINT, LOG, MOD, INTDIV, ROUND, EXP, SIN, COS, PI, E, 
                           GCD, LCM, PRIME, EVEN, FACTORIAL, BINOMIAL, ASIN, ACOS, ATAN])
 
@@ -260,6 +261,7 @@ __OP_STR__ = {
     ARRAY_STORE : "ARRAY_STORE",
     ARRAY_VALUE : "ARRAY_VALUE",
     DIV: "DIV",
+    ABS: "ABS",
     POW: "POW",
     SQRT: "SQRT",
     ALGEBRAIC_CONSTANT: "ALGEBRAIC_CONSTANT",

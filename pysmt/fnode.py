@@ -26,6 +26,7 @@ from pysmt.operators import (FORALL, EXISTS, AND, OR, NOT, IMPLIES, IFF,
                              LE, LT, EQUALS,
                              ITE, NUMER_ITE,
                              TOREAL,
+                             PI, E,
                              BV_CONSTANT, BV_NOT, BV_AND, BV_OR, BV_XOR,
                              BV_CONCAT, BV_EXTRACT,
                              BV_ULT, BV_ULE, BV_NEG, BV_ADD, BV_SUB,
@@ -269,6 +270,12 @@ class FNode(object):
 
     def is_zero(self):
         return self.is_real_constant(0) or self.is_int_constant(0)
+    
+    def is_E(self):
+        return self.node_type() == E
+        
+    def is_PI(self):
+        return self.node_type() == PI
 
     def is_toreal(self):
         """Test whether the node is the ToReal operator."""
@@ -648,7 +655,7 @@ class FNode(object):
     def array_value_index_type(self):
         assert self.is_array_value()
         return self._content.payload
-
+    
     def array_value_get(self, index):
         """Returns the value of this Array Value at the given index. The
         index must be a constant of the correct type.

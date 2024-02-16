@@ -402,7 +402,7 @@ class SmtLibParser(object):
                             'mul':self._operator_adapter(self._times_or_ctimes),
                             'round': self._operator_adapter(mgr.Round),
                             'to_int':self._operator_adapter(mgr.Round),
-                            'abs': self._operator_adapter(mgr.Abs),
+                            **{abs: self._operator_adapter(mgr.Abs) for abs in ["abs", "ABS"]},
                             'expt': self._operator_adapter(mgr.Pow),
                             'power': self._operator_adapter(mgr.Pow),
                             'exp': self._operator_adapter(lambda formula:mgr.Pow(base=mgr.E(), exponent=formula)),
@@ -490,8 +490,8 @@ class SmtLibParser(object):
                             'as':self._enter_smtlib_as,
                             }
         # pre-defined constant
-        self.constants = {'pi': mgr.PI(), 
-                          'e': mgr.E(), 
+        self.constants = {**{pi: mgr.PI() for pi in ['PI', 'pi', 'Pi']},
+                          'E': mgr.E(), 
                          }
         # Command tokens
         self.commands = {smtcmd.ASSERT : self._cmd_assert,
@@ -989,8 +989,8 @@ class SmtLibParser(object):
                     while tk == "(":
                         stack.append([])
                         tk = tokens.consume()
-                    if tk.lower() in self.interpreted:
-                        fun = self.interpreted[tk.lower()]
+                    if tk in self.interpreted:
+                        fun = self.interpreted[tk]
                         fun(stack, tokens, tk)
                     else:
                         stack[-1].append(self.atom(tk, mgr))
@@ -1018,8 +1018,8 @@ class SmtLibParser(object):
                 else:
                     try:
                         # to check whether it is a special constant
-                        if tk.lower() in self.constants:
-                            res = self.constants[tk.lower()]
+                        if tk in self.constants:
+                            res = self.constants[tk]
                             stack[-1].append(res)
                         else:
                             stack[-1].append(self.atom(tk, mgr))
@@ -1510,6 +1510,7 @@ class SmtLibParser(object):
     def _cmd_declare_fun(self, current, tokens):
         """(declare-fun <symbol> (<sort>*) <sort>)"""
         var = self.parse_atom(tokens, current)
+        self._check_dict(var, ['interpreted', 'constants'])
         params = self.parse_params(tokens, current)
         typename = self.parse_type(tokens, current)
         self.consume_closing(tokens, current)
@@ -1523,14 +1524,13 @@ class SmtLibParser(object):
                     functools.partial(self._function_call_helper, v))
         else:
             self.cache.bind(var, v)
-        return SmtLibCommand(current, [v])
-
+        return SmtLibCommand(current, [v, typename])
+                
     def _cmd_define_fun(self, current, tokens):
         """(define-fun <fun_def>)"""
         formal = []
         var = self.parse_atom(tokens, current)
-        if var in self.interpreted:
-            del self.interpreted[var]
+        self._check_dict(var, ['interpreted', 'constants'])
         namedparams = self.parse_named_params(tokens, current)
         rtype = self.parse_type(tokens, current)
         bindings = []
@@ -1726,6 +1726,12 @@ class SmtLibParser(object):
         """(reset-assertions)"""
         self.parse_atoms(tokens, current, 0)
         return SmtLibCommand(current, [])
+    
+    def _check_dict(self, var, attributes_to_check):
+        """ check whether var's name is duplicate in the interpreter and remove it"""
+        for attr in attributes_to_check:
+            if var in getattr(self, attr):
+                del getattr(self, attr)[var]
 
 # EOC SmtLibParser
 

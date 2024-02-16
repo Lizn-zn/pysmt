@@ -15,17 +15,23 @@ def pysmt_solver(statement, solver_name):
     Opt = Optimizer if any(cmd.name in ["maximize", "minimize"] for cmd in script) else Solver
     with Opt(name=solver_name) as opt:
         logs = script.evaluate(opt)
-    return logs[-1]
+    cmd, res = logs[-1] 
+    if cmd == "get-value":
+        return (True, [str(res[key]).replace("?", "") for key in res]) 
+    elif cmd == "get-model":
+        res = str(res).replace("?", "").split('\n') # remove ? in the model
+        return (True, res)
+    else:
+        return (cmd, res)
 
 def test_solver(statement, solver_name):
     """尝试使用指定的求解器解决问题并返回结果。"""
     try:
         res = pysmt_solver(statement, solver_name=solver_name)
-        print(f"{solver_name.upper()} Pass! Output {res}")
+        print(f"{solver_name.upper()} Pass! Output: SAT:={res[0]}, MODEL:={res[1]}")
         return True
     except Exception as e:
         # covert solver_name to upper caption
-        raise e
         print(f"{solver_name.upper()} failed with error: {e}")
         return False
 

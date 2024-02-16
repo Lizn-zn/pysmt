@@ -19,6 +19,9 @@
 
 import pysmt.operators as op
 
+""" __summary__
+    The following is for pySMT compilation exceptions
+"""
 
 class PysmtException(Exception):
     """Base class for all custom exceptions of pySMT"""
@@ -26,6 +29,107 @@ class PysmtException(Exception):
 
 class UnknownSmtLibCommandError(PysmtException):
     """Raised when the parser finds an unknown command."""
+    pass
+
+class ConvertExpressionError(PysmtException):
+    """Exception raised if the converter cannot convert an expression."""
+
+    def __init__(self, message=None, expression=None):
+        PysmtException.__init__(self)
+        self.message = message
+        self.expression=expression
+
+    def __str__(self):
+        return self.message
+
+class UnsupportedOperatorError(PysmtException):
+    """The expression contains an operator that is not supported.
+
+    The argument node_type contains the unsupported operator id.
+    """
+
+    def __init__(self, message=None, node_type=None, expression=None):
+        if message is None:
+            message = "Unsupported operator '%s' (node_type: %d)" % (op.op_to_str(node_type), node_type)
+        PysmtException.__init__(self)
+        self.message = message
+        self.expression = expression
+        self.node_type = node_type
+
+    def __str__(self):
+        return self.message
+
+class DefinitionMissingError(PysmtException):
+    """The definition of a symbol is missing."""
+    def __init__(self, message=None, expression=None):
+        PysmtException.__init__(self)
+        self.message = message
+        self.expression=expression
+
+    def __str__(self):
+        return self.message
+        
+class UndefinedSymbolError(PysmtException):
+    """The given Symbol is not in the FormulaManager."""
+
+    def __init__(self, name):
+        PysmtException.__init__(self)
+        self.name = name
+
+    def __str__(self):
+        return "'%s' is not defined!" % self.name
+
+class PysmtModeError(PysmtException):
+    """The current mode is not supported for this operation"""
+    pass
+
+class PysmtImportError(PysmtException, ImportError):
+    pass
+
+class PysmtValueError(PysmtException, ValueError):
+    pass
+
+class PysmtTypeError(PysmtException, TypeError):
+    pass
+
+class PysmtSyntaxError(PysmtException, SyntaxError):
+    def __init__(self, message, pos_info=None):
+        super(PysmtSyntaxError, self).__init__(message)
+        self.pos_info = pos_info
+        self.message = message
+
+    def __str__(self):
+        if self.pos_info:
+            return "Line %d, Col %d: " % self.pos_info + self.message
+        else:
+            return self.message
+
+class IllegalGetValueCommand(PysmtException):
+    """The args in get-value command is not supported by the solver."""
+    def __init__(self, message=None, expression=None):
+        PysmtException.__init__(self)
+        self.message = message
+        self.expression=expression
+
+    def __str__(self):
+        return self.message
+    
+class InvalidSetOption(PysmtException):
+    """The smt-lib set-option is not valid."""
+    def __init__(self, message=None, expression=None):
+        PysmtException.__init__(self)
+        self.message = message
+        self.expression=expression
+
+    def __str__(self):
+        return self.message
+
+""" __summary__
+    The following is for SMT solvers' exceptions
+"""
+
+class SolverAPINotFound(PysmtException):
+    """The Python API of the selected solver cannot be found."""
     pass
 
 class SolverReturnedUnknownResultError(PysmtException):
@@ -75,96 +179,6 @@ class SolverStatusError(PysmtException):
     """
     pass
 
-class ConvertExpressionError(PysmtException):
-    """Exception raised if the converter cannot convert an expression."""
-
-    def __init__(self, message=None, expression=None):
-        PysmtException.__init__(self)
-        self.message = message
-        self.expression=expression
-
-    def __str__(self):
-        return self.message
-
-class UnsupportedOperatorError(PysmtException):
-    """The expression contains an operator that is not supported.
-
-    The argument node_type contains the unsupported operator id.
-    """
-
-    def __init__(self, message=None, node_type=None, expression=None):
-        if message is None:
-            message = "Unsupported operator '%s' (node_type: %d)" % (op.op_to_str(node_type), node_type)
-        PysmtException.__init__(self)
-        self.message = message
-        self.expression = expression
-        self.node_type = node_type
-
-    def __str__(self):
-        return self.message
-
-class DefinitionMissingError(PysmtException):
-    """The definition of a symbol is missing."""
-    def __init__(self, message=None, expression=None):
-        PysmtException.__init__(self)
-        self.message = message
-        self.expression=expression
-
-    def __str__(self):
-        return self.message
-    
-class IllegalGetValueCommand(PysmtException):
-    """The args in get-value command is not supported by the solver."""
-    def __init__(self, message=None, expression=None):
-        PysmtException.__init__(self)
-        self.message = message
-        self.expression=expression
-
-    def __str__(self):
-        return self.message
-    
-
-class SolverAPINotFound(PysmtException):
-    """The Python API of the selected solver cannot be found."""
-    pass
-
-
-class UndefinedSymbolError(PysmtException):
-    """The given Symbol is not in the FormulaManager."""
-
-    def __init__(self, name):
-        PysmtException.__init__(self)
-        self.name = name
-
-    def __str__(self):
-        return "'%s' is not defined!" % self.name
-
-class PysmtModeError(PysmtException):
-    """The current mode is not supported for this operation"""
-    pass
-
-
-class PysmtImportError(PysmtException, ImportError):
-    pass
-
-class PysmtValueError(PysmtException, ValueError):
-    pass
-
-class PysmtTypeError(PysmtException, TypeError):
-    pass
-
-class PysmtSyntaxError(PysmtException, SyntaxError):
-    def __init__(self, message, pos_info=None):
-        super(PysmtSyntaxError, self).__init__(message)
-        self.pos_info = pos_info
-        self.message = message
-
-    def __str__(self):
-        if self.pos_info:
-            return "Line %d, Col %d: " % self.pos_info + self.message
-        else:
-            return self.message
-
 class ModelUnavilableError(PysmtException):
     pass
 
@@ -174,6 +188,10 @@ class ModelUnsatError(PysmtException):
 class PysmtIOError(PysmtException, IOError):
     pass
 
+
+""" __summary__
+    The following is for the optimization module 
+"""
 
 class PysmtInfinityError(PysmtException):
     """Infinite value in expressions."""
