@@ -59,7 +59,8 @@ class CVC4Options(SolverOptions):
         if solver.logic_name == "QF_SLIA":
             self._set_option(solver.cvc4,
                              "strings-exp", "true")
-
+        self._set_option(solver.cvc4,
+                         "fmf-fun", "true")
         self._set_option(solver.cvc4,
                          "produce-models", str(self.generate_models).lower())
         self._set_option(solver.cvc4,
@@ -408,6 +409,15 @@ class CVC4Converter(Converter, DagWalker):
             return self.mkExpr(CVC4.INTS_DIVISION, args[0], args[1])
         else:
             return self.mkExpr(CVC4.DIVISION, args[0], args[1])
+        
+    def walk_gcd(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc4 does not support gcd function")
+    
+    def walk_lcm(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc4 does not support lcm function")
+    
+    def walk_binomial(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc5 does not support binomial function")
 
     """_summary_
         The following are non-linear arithmetic operations
@@ -447,12 +457,41 @@ class CVC4Converter(Converter, DagWalker):
     def walk_log(self, formula, args, **kwargs):
         raise InternalSolverError("cvc4 does not support logarithmic function")
 
-
     def walk_sin(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.SINE, args[0])
     
+    def walk_cos(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.COSINE, args[0])
+    
+    def walk_tan(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.TANGENT, args[0])
+    
+    def walk_asin(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.ARCSINE, args[0])
+        
+    def walk_acos(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.ARCCOSINE, args[0])
+    
+    def walk_atan(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.ARCTANGENT, args[0])
+    
+    def walk_acsc(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.ARCCOSECANT, args[0])
+    
+    def walk_acot(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.ARCCOTANGENT, args[0])
+    
+    def walk_asec(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.ARCSECANT, args[0])
+    
     def walk_toreal(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.TO_REAL, args[0])
+    
+    def walk_realtoint(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.TO_INTEGER, args[0])
+    
+    def walk_round(self, formula, args, **kwargs):
+        return self.mkExpr(CVC4.TO_INTEGER, args[0])
     
     def walk_pi(self, formula, args, **kwargs):
         raise InternalSolverError("CVC4 does not support pi")
@@ -464,6 +503,11 @@ class CVC4Converter(Converter, DagWalker):
     """_summary_
     The following are complex arithmetic operations
     """
+    def walk_tocomplex(self, formula, args, **kwargs):
+        """ complex_variable of (a+bi) """
+        real, image = args
+        return ComplexExpr(real, image)
+    
     def walk_complex_equals(self, formula, args, **kwargs):
         """ complex_equals of (a+bi) = (c+di) """
         a, b = args[0]
@@ -521,6 +565,14 @@ class CVC4Converter(Converter, DagWalker):
         cvc4term = ComplexExpr(real_cvc4term, image_cvc4term)
         return cvc4term
 
+    def walk_complex_abs(self, formula, args, **kwargs):
+        """ complex_abs of (a+bi) """
+        a, b = args[0]
+        a_square = self.walk_times(formula, (a, a))
+        b_square = self.walk_times(formula, (b, b))
+        sum_square = self.walk_plus(formula, (a_square, b_square))
+        return self.walk_sqrt(formula, (sum_square,))
+    
     """_summary_
     MISC. operations
     """
@@ -530,6 +582,9 @@ class CVC4Converter(Converter, DagWalker):
     def walk_array_select(self, formula, args, **kwargs):
         return self.mkExpr(CVC4.SELECT, args[0], args[1])
     
+    def walk_array_value(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc4 does not support array value")
+
     def walk_bv_constant(self, formula, **kwargs):
         vrepr = str(formula.constant_value())
         width = formula.bv_width()

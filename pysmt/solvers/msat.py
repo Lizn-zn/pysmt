@@ -977,23 +977,64 @@ class MSatConverter(Converter, DagWalker):
     def walk_exp(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_exp(self.msat_env(), args[0])
 
-    def walk_sin(self, formula, args, **kwargs):
-        return self._msat_lib.msat_make_sin(self.msat_env(), args[0])
-
     def walk_pi(self, formula, args, **kwargs):
-        return self._msat_lib.msat_make_pi(self.msat_env())
+        # return self._msat_lib.msat_make_pi(self.msat_env())
+        raise InternalSolverError("PI exists in MathSAT, while it does not work well")
     
     def walk_e(self, formula, args, **kwargs):
         warn("The exponential constant is involved, the solution of MathSAT can be incorrect")
         msat_one = self._msat_lib.msat_make_number(self.msat_env(), "1")
         return self._msat_lib.msat_make_exp(self.msat_env(), msat_one)
-        
+    
     def walk_log(self, formula, args, **kwargs):
         return self._msat_lib.msat_make_log(self.msat_env(), args[0])
 
     def walk_toreal(self, formula, args, **kwargs):
         # In self._msat_lib toreal is implicit
         return args[0]
+    
+    def walk_realtoint(self, formula, args, **kwargs):
+        return args[0]
+
+    def walk_round(self, formula, args, **kwargs):
+        """ exactly same with walk_realtoint """
+        return args[0]
+    
+    def walk_gcd(self, formula, args, **kwargs):
+        raise InternalSolverError("GCD is still not supported in MathSAT")
+    
+    def walk_lcm(self, formula, args, **kwargs):
+        raise InternalSolverError("LCM is still not supported in MathSAT")
+    
+    def walk_binomial(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc5 does not support binomial function")
+    
+    def walk_sin(self, formula, args, **kwargs):
+        return self._msat_lib.msat_make_sin(self.msat_env(), args[0])
+    
+    def walk_cos(self, formula, args, **kwargs):
+        raise InternalSolverError("Cosine is still not supported in MathSAT")
+    
+    def walk_tan(self, formula, args, **kwargs):
+        raise InternalSolverError("Tangent is still not supported in MathSAT")
+    
+    def walk_asin(self, formula, args, **kwargs):
+        raise InternalSolverError("Arcsine is still not supported in MathSAT")
+    
+    def walk_acos(self, formula, args, **kwargs):
+        raise InternalSolverError("Arccosine is still not supported in MathSAT")
+    
+    def walk_atan(self, formula, args, **kwargs):
+        raise InternalSolverError("Arctangent is still not supported in MathSAT")
+    
+    def walk_acsc(self, formula, args, **kwargs):
+        raise InternalSolverError("Arccosecant is still not supported in MathSAT")
+    
+    def walk_acot(self, formula, args, **kwargs):
+        raise InternalSolverError("Arccotangent is still not supported in MathSAT")
+    
+    def walk_asec(self, formula, args, **kwargs):
+        raise InternalSolverError("Arcsecant is still not supported in MathSAT")
 
     def walk_mod(self, formula, args, **kwargs):
         raise InternalSolverError("Modular is still not supported in MathSAT")
@@ -1011,6 +1052,11 @@ class MSatConverter(Converter, DagWalker):
         real, image = formula.constant_value()
         rep = ComplexExpr(self.walk_real_constant(real), self.walk_real_constant(image))
         return rep
+    
+    def walk_tocomplex(self, formula, args, **kwargs):
+        """ complex_variable of (a+bi) """
+        real, image = args
+        return ComplexExpr(real, image)
 
     def walk_complex_equals(self, formula, args, **kwargs):
         """ complex_equals of (a+bi) = (c+di) """
@@ -1068,10 +1114,27 @@ class MSatConverter(Converter, DagWalker):
         image_msat_term = self.walk_div(formula, (numerator_image, denominator))
         msat_term = ComplexExpr(real_msat_term, image_msat_term)
         return msat_term
+
+    def walk_complex_abs(self, formula, args, **kwargs):
+        """ complex_abs of (a+bi) """
+        a, b = args[0]
+        a_square = self.walk_times(formula, (a, a))
+        b_square = self.walk_times(formula, (b, b))
+        sum_square = self.walk_plus(formula, (a_square, b_square))
+        return self.walk_sqrt(formula, (sum_square,))
     
     """_summary_
         MISC. operators
     """
+    def walk_str_constant(self, formula, **kwargs):
+        raise InternalSolverError("String is still not supported in MathSAT")
+    
+    def walk_forall(self, formula, args, **kwargs):
+        raise InternalSolverError("Quantifier is still not supported in MathSAT")
+    
+    def walk_exists(self, formula, args, **kwargs):
+        raise InternalSolverError("Quantifier is still not supported in MathSAT")
+    
     def walk_bv_constant(self, formula, **kwargs):
         rep = str(formula.constant_value())
         width = formula.bv_width()
@@ -1371,7 +1434,6 @@ class MSatQuantifierEliminator(QuantifierEliminator, IdentityDagWalker):
                   "find the MathSAT term representing the quantifier " \
                   "elimination as the attribute 'expression' of this " \
                   "exception object" % str(res)), expression=res)
-
 
     def walk_forall(self, formula, args, **kwargs):
         assert formula.is_forall()

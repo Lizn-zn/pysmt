@@ -34,5 +34,25 @@
   "test_idx_8": {
     "topic": "ABS",
     "statement": "\n(declare-fun A () Int)\n\n(assert (< A 0))\n(assert (= (abs A) 100))\n\n(check-sat)\n(get-value (A))\n"
+  },
+  "test_idx_9": {
+    "topic": "ARCCOT",
+    "statement": "\n; Define the arccot function\n(define-fun arccot ((x Real)) Real (/ pi 2 (atan x)))\n\n; Define the value to compute tan of\n(define-fun val () Real (arccot (/ 4 7)))\n\n\n(check-sat)\n(get-value (val))\n"
+  },
+  "test_idx_10": {
+    "topic": "TO_INT",
+    "statement": "\n; Declare the parameter t and the function f(t)\n(declare-fun t () Real)\n(declare-fun x () Int)\n\n(assert (= t 2.6))\n(assert (= x (to_int t)))\n(check-sat)\n(get-value (x))\n"
+  },
+  "test_idx_11": {
+    "topic": "DEFINE-FUNC-REC",
+    "statement": "\n(declare-const day Int)\n(declare-const paperclips Int)\n\n; Jasmine starts with 2 paperclips on Monday (day 0)\n; Her number of paperclips triples on each subsequent day\n(define-fun-rec paperclips_on_day ((day Int)) Int\n  (ite (= day 0) 2\n  (* 3 (paperclips_on_day (- day 1)))))\n\n; Jasmine first has more than 100 paperclips on day X\n(assert (> day 0))\n(assert (> (paperclips_on_day day) 100))\n\n; Find the smallest such day\n(minimize day)\n\n(check-sat)\n(get-value (day))\n"
+  },
+  "test_idx_12": {
+    "topic": "DEFINE-FUNC",
+    "statement": "\n(declare-const day Int)\n(declare-const paperclips Int)\n\n; Jasmine starts with 2 paperclips on Monday (day 0)\n; Her number of paperclips triples on each subsequent day\n(define-fun paperclips_on_day ((day Int)) Int\n  (* 3 (- day 1)))\n\n; Jasmine first has more than 100 paperclips on day X\n(assert (> day 0))\n(assert (> (paperclips_on_day day) 100))\n\n; Find the smallest such day\n(minimize day)\n\n(check-sat)\n(get-value (day))\n"
+  },
+  "test_idx_13": {
+    "topic": "TOINT",
+    "statement": "\n(declare-const lower_bound Real)\n(declare-const upper_bound Real)\n(declare-const int_count Int)\n\n; Define the lower and upper bounds\n(assert (= lower_bound (sqrt 5)))\n(assert (= upper_bound (sqrt 50)))\n\n; The number of integers between two real numbers is the difference between the floor of the upper bound and the ceiling of the lower bound, plus one\n(assert (= int_count (+ (- (to_int upper_bound) (to_int (ceil lower_bound))) 1)))\n\n(check-sat)\n(get-value (int_count))\n"
   }
 }
