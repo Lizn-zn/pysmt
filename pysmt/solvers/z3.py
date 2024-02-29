@@ -339,6 +339,7 @@ class Z3Converter(Converter, DagWalker):
             z3.Z3_OP_MUL: lambda args, expr: self.mgr.Times(args),
             z3.Z3_OP_ADD: lambda args, expr: self.mgr.Plus(args),
             z3.Z3_OP_DIV: lambda args, expr: self.mgr.Div(args[0], args[1]),
+            z3.Z3_OP_MOD: lambda args, expr: self.mgr.Modulo(args[0], args[1]),
             z3.Z3_OP_IFF: lambda args, expr: self.mgr.Iff(args[0], args[1]),
             z3.Z3_OP_XOR: lambda args, expr:  self.mgr.Xor(args[0], args[1]),
             z3.Z3_OP_FALSE: lambda args, expr: self.mgr.FALSE(),
@@ -604,18 +605,18 @@ class Z3Converter(Converter, DagWalker):
                     warnings.warn("Defining new symbol: %s" % str(expr))
                     return self.mgr.FreshSymbol(symb_type,
                                                 template="__z3_%d")
-        elif z3.is_function(expr):
-            # This needs to be after we try to convert regular Symbols
-            fsymbol = self.mgr.get_symbol(expr.decl().name())
-            return self.mgr.Function(fsymbol, args)
         elif z3.is_to_int(expr):
             return self.mgr.Round(args[0])
         elif z3.is_to_real(expr):
             return self.mgr.ToReal(args[0])
-        # elif z3.is_rec_function(expr):
-        #     # This needs to be after we try to convert regular Symbols
-        #     fsymbol = self.mgr.get_symbol(expr.decl().name())
-        #     return self.mgr.Function(fsymbol, args)
+        elif z3.is_function(expr):
+            # This needs to be after we try to convert regular Symbols
+            fsymbol = self.mgr.get_symbol(expr.decl().name())
+            return self.mgr.Function(fsymbol, args)
+        elif z3.is_rec_function(expr):
+            # This needs to be after we try to convert regular Symbols
+            fsymbol = self.mgr.get_symbol(expr.decl().name())
+            return self.mgr.Function(fsymbol, args)
 
         # If we reach this point, we did not manage to translate the expression
         raise ConvertExpressionError(message=("Unsupported expression: %s" %
