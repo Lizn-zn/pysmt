@@ -43,8 +43,6 @@ import pysmt.smtlib.printers
 from pysmt.typing import INT, BOOL, REAL, BVType, FunctionType, ArrayType, Type
 assert INT or BOOL or REAL or BVType or FunctionType or ArrayType or Type
 
-from pysmt.printers import HRPrinter, BottemaPrinter
-
 
 def get_env():
     """Returns the global environment.
