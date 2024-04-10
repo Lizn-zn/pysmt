@@ -543,14 +543,15 @@ class FNode(object):
     def __repr__(self):
         return str(self)
 
-    def serialize(self, threshold=None):
+    def serialize(self, printer=None, threshold=None):
         """Returns a human readable representation of the formula.
 
         The threshold parameter can be used to limit the amount of the
         formula that will be printed.
         See :py:class:`HRSerializer`
         """
-        return _env().serializer.serialize(self, threshold=threshold)
+        return _env().serializer.serialize(self, printer=printer, threshold=threshold)
+
 
     def to_smtlib(self, daggify=True):
         """Returns a Smt-Lib string representation of the formula.
