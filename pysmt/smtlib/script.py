@@ -53,7 +53,6 @@ class SmtLibCommand(namedtuple('SmtLibCommand', ['name', 'args'])):
         a tree printing is done.
 
         """
-
         if (outstream is None) and (printer is not None):
             outstream = printer.stream
         elif (outstream is not None) and (printer is None):
