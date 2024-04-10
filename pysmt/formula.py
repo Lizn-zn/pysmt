@@ -393,8 +393,8 @@ class FormulaManager(object):
         elif is_python_rational(value):
             val = pysmt_fraction_from_rational(value)
         else:
-            raise PysmtTypeError("Invalid type in constant. The type was:" + \
-                                 str(type(value)))
+            raise PysmtTypeError("Invalid type in constant. The type was: " + \
+                                str(type(value)))
 
         n = self.create_node(node_type=op.REAL_CONSTANT,
                              args=tuple(),
@@ -414,8 +414,8 @@ class FormulaManager(object):
         elif is_python_rational(value) or is_pysmt_fraction(value):
             val = pysmt_integer_from_integer(to_python_integer(value))
         else:
-            raise PysmtTypeError("Invalid type in constant. The type was:" + \
-                                 str(type(value)))
+            raise PysmtTypeError("Invalid type in constant. The type was: " + \
+                                str(type(value)))
         n = self.create_node(node_type=op.INT_CONSTANT,
                              args=tuple(),
                              payload=val)
@@ -637,7 +637,7 @@ class FormulaManager(object):
                 return self.Complex(real.constant_value(), image.constant_value())
         else:
             raise PysmtTypeError("Expecting complex number with 1 or 2 arguments, got %d" % len(args))
-        return self.create_node(node_type=op.COMPLEX_VARIABLE,
+        return self.create_node(node_type=op.TOCOMPLEX,
                                 args=(real, image))
         
     def Complex_Equals(self, left, right):
@@ -677,6 +677,10 @@ class FormulaManager(object):
         return self.create_node(node_type=op.COMPLEX_DIV,
                                 args=(left, right))
     
+    def Complex_Abs(self, formula):
+        """ Returns the absolute value of a complex number. """
+        return self.create_node(node_type=op.COMPLEX_ABS,
+                                args=(formula,))
 
     def AtMostOne(self, *args):
         """ At most one of the bool expressions can be true at anytime.
@@ -774,6 +778,10 @@ class FormulaManager(object):
         """Returns the encoding of the modulo expression left % right"""
         return self.create_node(node_type=op.MOD,
                                 args=(self.RealToInt(left), self.RealToInt(right)))
+        
+    def Divides(self, left, right):
+        """Returns the encoding of the divides expression left | right"""
+        return self.Equals(self.Modulo(right, left), self.Int(0))
 
     def GCD(self, left, right):
         """Returns the encoding of the greatest common divisor expression"""
@@ -824,6 +832,11 @@ class FormulaManager(object):
         """ Creates an expression of the form: cos(formula) """
         return self.create_node(node_type=op.COS,
                                 args=(formula,))
+        
+    def Tan(self, formula):
+        """ Creates an expression of the form: tan(formula) """
+        return self.create_node(node_type=op.TAN,
+                                args=(formula,))
 
     def ASin(self, formula):
         """ Creates an expression of the form: asin(formula) """
@@ -839,14 +852,25 @@ class FormulaManager(object):
         """ Creates an expression of the form: atan(formula) """
         return self.create_node(node_type=op.ATAN,
                                 args=(formula,))
-
-    def Tan(self, formula):
-        """ Creates an expression of the form: tan(formula) """
-        return self.Div(self.Sin(formula), self.Cos(formula))
+    
+    def ACsc(self, formula):
+        """ Creates an expression of the form: acsc(formula) """
+        return self.create_node(node_type=op.ACSC,
+                                args=(formula,))
+    
+    def ACot(self, formula):
+        """ Creates an expression of the form: acot(formula) """
+        return self.create_node(node_type=op.ACOT,
+                                args=(formula,))
+    
+    def ASec(self, formula):
+        """ Creates an expression of the form: asec(formula) """
+        return self.create_node(node_type=op.ASEC,
+                                args=(formula,))
 
     def PI(self):
         """ Creates an expression of the form: PI """
-        return self.create_node(node_type=op.PI, args=())
+        return self.create_node(node_type=op.PI, args=(), payload=(3.141592653,))
 
     def E(self):
         """ Creates an expression of the form: e """

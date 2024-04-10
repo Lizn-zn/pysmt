@@ -53,6 +53,7 @@ class SmtLibCommand(namedtuple('SmtLibCommand', ['name', 'args'])):
         a tree printing is done.
 
         """
+
         if (outstream is None) and (printer is not None):
             outstream = printer.stream
         elif (outstream is not None) and (printer is None):
@@ -414,7 +415,7 @@ class InterpreterSMT(object):
 
         elif cmd.name == smtcmd.ECHO:
             return cmd.args[0]
-
+        
         elif cmd.name == smtcmd.CHECK_SAT_ASSUMING:
             return solver.check_sat(cmd.args)
 
@@ -438,6 +439,10 @@ class InterpreterSMT(object):
             (var, formals, typename, body) = cmd.args
             return solver.define_fun_rec(var, formals, typename, body)
 
+        elif cmd.name in (smtcmd.GET_INFO, smtcmd.GET_ASSERTIONS, smtcmd.RESET):
+            warnings.warn(f"{cmd.name} is not implemented yet, ignore")
+            return 
+            
         elif cmd.name in smtcmd.ALL_COMMANDS:
             raise NotImplementedError("'%s' is a valid SMT-LIB command "\
                                       "but it is currently not supported. "\

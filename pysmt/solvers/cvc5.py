@@ -38,6 +38,9 @@ from pysmt.solvers.eager import EagerModel
 from pysmt.decorators import clear_pending_pop, catch_conversion_error
 from pysmt.constants import Fraction, is_pysmt_integer, to_python_integer
 
+from warnings import warn
+
+
 # SEE https://cvc5.github.io/docs/cvc5-1.1.1/api/python/pythonic/pythonic.html
 class CVC5Options(SolverOptions):
 
@@ -53,7 +56,7 @@ class CVC5Options(SolverOptions):
         try:
             cvc5solver.setOption(name, value)
         except:
-            raise PysmtValueError("Error setting the option '%s=%s'" % (name,value))
+            raise InvalidSetOption("Error setting the option '%s=%s'" % (name,value))
 
     def __call__(self, solver):
         if solver.logic_name == "QF_SLIA":
@@ -148,8 +151,8 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
     def solve(self, assumptions=None):
         if assumptions is not None:
             conj_assumptions = self.environment.formula_manager.And(assumptions)
-            self.Kind_assumption = self.converter.convert(conj_assumptions)
-            res = self.cvc5solver.checkSat(self.Kind_assumption)
+            cvc5_assumption = self.converter.convert(conj_assumptions)
+            res = self.cvc5solver.checkSatAssuming(cvc5_assumption)
         else:
             try:
                 res = self.cvc5solver.checkSat()
@@ -159,27 +162,27 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
         # Convert returned type
         self.res_type = res
         if cvc5.Result.isUnknown(res):
-            raise SolverReturnedUnknownResultError()
+            raise SolverReturnedUnknownResultError("cvc5 returns unknown")
         elif cvc5.Result.isUnsat(res):
             raise ModelUnsatError("cvc5 returns unsat")
         else:
             return cvc5.Result.isSat(res)
 
-    # def push(self, levels=1):
-    #     if not self.options.incremental:
-    #         # The exceptions from self.Kind are not raised correctly
-    #         # (probably due to the wrapper)
-    #         # Therefore, we need to check that we can actually do a push
-    #         raise NotImplementedError("The solver is not incremental")
+    def push(self, levels=1):
+        if not self.options.incremental:
+            # The exceptions from self.Kind are not raised correctly
+            # (probably due to the wrapper)
+            # Therefore, we need to check that we can actually do a push
+            raise NotImplementedError("The solver is not incremental")
 
-    #     for _ in range(levels):
-    #         self.self.Kind.push()
-    #     return
+        for _ in range(levels):
+            self.cvc5solver.push()
+        return
 
-    # def pop(self, levels=1):
-    #     for _ in range(levels):
-    #         self.self.Kind.pop()
-    #     return
+    def pop(self, levels=1):
+        for _ in range(levels):
+            self.cvc5solver.pop()
+        return
 
     # def print_model(self, name_filter=None):
     #     if name_filter is None:
@@ -198,17 +201,19 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
         term = self.converter.convert(item)
         if isinstance(term, ComplexExpr):
             real, image = term
-            self.Kind_res = self.self.Kind.getValue(real)
+            self.Kind_res = self.cvc5solver.getValue(real)
             real_res = self.converter.back(self.Kind_res)
-            self.Kind_res = self.self.Kind.getValue(image)
+            self.Kind_res = self.cvc5solver.getValue(image)
             image_res = self.converter.back(self.Kind_res)
             res = self.converter.mgr.ToComplex(real_res, image_res)
         else:
             cvc5_res = self.cvc5solver.getValue(term)
             res = self.converter.back(cvc5_res)
-            if self.environment.stc.get_type(item).is_real_type() and \
+            if res.is_constant() and self.environment.stc.get_type(item).is_real_type() and \
                 self.environment.stc.get_type(res).is_int_type():
-                res = self.environment.formula_manager.Real(Fraction(res.constant_value(), 1))
+                    res = self.environment.formula_manager.Real(Fraction(res.constant_value(), 1))
+        if not res.is_constant():
+            return res.simplify()
         return res
 
     def _exit(self):
@@ -237,6 +242,7 @@ class CVC5Converter(Converter, DagWalker):
         self.mkReal = cvc5_solver.mkReal
         self.mkInteger = cvc5_solver.mkInteger
         self.mkBoolean = cvc5_solver.mkBoolean
+        self.mkConstArray = cvc5_solver.mkConstArray
         self.mkBitVector = cvc5_solver.mkBitVector
         self.mkString = cvc5_solver.mkString
         self.mkVar = cvc5_solver.mkVar
@@ -319,21 +325,43 @@ class CVC5Converter(Converter, DagWalker):
             res = self._back_memoization[expr.getId()]
         # raise PysmtTypeError("Unsupported expression: %s" % expr)
         return res
-    
-    def parse_op(self, expr):
-        str_expr = str(expr)
-        str_op = str_expr.split(" ")[0][1:]
-        if str_op == "+":
-            return self.mgr.Plus
-        elif str_op == "-":
-            return self.mgr.Minus
-        elif str_op == "*":
-            return self.mgr.Times
-        elif str_op == "/":
-            return self.mgr.Div
+                        
+    def _back_single_term(self, expr, args):
+        if expr.isBooleanValue():
+            v = expr.getBooleanValue()
+            res = self.mgr.Bool(v)
+        elif expr.isIntegerValue():
+            v = expr.getIntegerValue()
+            res = self.mgr.Int(int(v))
+        elif expr.isRealValue():
+            v = str(expr.getRealValue())
+            res = self.mgr.Real(Fraction(v))
+        elif expr.isBitVectorValue():
+            bv = expr.getBitVectorValue()
+            res = self.mgr.BV(bv)
+        elif expr.isStringValue():
+            v = expr.getStringValue()
+            res = self.mgr.String(v)
+        elif expr.isConstArray():
+            const_ = expr.getConstArrayBase()
+            array_type = self._cvc5_type_to_type(expr.getSort())
+            base_value = self._back_single_term(const_, [])
+            res = self.mgr.Array(array_type.index_type, base_value)
+        elif expr.getKind() == self.Kind.APPLY_UF:
+            decl = expr.getOperator()
+            decl_name = decl.toString()
+            if decl_name in self.declared_vars:
+                decl = self.declared_vars[decl_name]
+            else:
+                decl_type = decl.getSort()
+                decl_type = self._cvc5_type_to_type(decl_type)
+                decl = self.mgr.Symbol(decl_name, decl_type)
+                self.declared_vars[decl_name] = decl
+            res = self.mgr.Function(decl, args)
         else:
-            raise PysmtTypeError(f"Unsupported operator {str_op} in the expression: {expr}")
-        
+            res = self._back_op(expr, args)
+        return res
+
     def _back_fun(self, op, args, fix_real=[]):
         """ This is a helper function to handle the case when some variables should be converted to real
             fix_real is a index list to determine which arg to be converted
@@ -348,110 +376,57 @@ class CVC5Converter(Converter, DagWalker):
                 args = [self.mgr.ToReal(a) if i in fix_real else a for i,a in enumerate(args)]
                 res = op(*args)
         return res
-            
-    def _back_single_term(self, expr, args):
-        if expr.isBooleanValue():
-            v = expr.getBooleanValue()
-            res = self.mgr.Bool(v)
-        elif expr.isIntegerValue():
-            v = expr.getIntegerValue()
-            res = self.mgr.Int(int(v))
-        elif expr.isRealValue():
-            v = str(expr.getRealValue())
-            res = self.mgr.Real(Fraction(v))
-        elif expr.isBitVectorValue():
-            bv = expr.getBitVectorValue()
-            width = bv.getSize()
-            res = self.mgr.BV(int(v), width)
-        elif expr.isStringValue():
-            v = expr.getStringValue()
-            res = self.mgr.String(v)
-        elif expr.isConstArray():
-            const_ = expr.getConstArrayBase()
-            array_type = self._cvc5_type_to_type(expr.getSort())
-            if array_type.elem_type == types.INT:
-                val = int(const_.getIntegerValue())
-                base_value = self.mgr.Int(val)
-            elif array_type.elem_type == types.REAL:
-                val = str(const_.getRealValue())
-                base_value = self.mgr.Real(Fraction(val))
-            else:
-                raise PysmtTypeError(f"Unsupported array element type: {array_type.elem_type}")
-            res = self.mgr.Array(array_type.index_type, base_value)
-        elif expr.getKind() == self.Kind.APPLY_UF:
-            decl = expr.getOperator()
-            decl_name = decl.toString()
-            if decl_name in self.declared_vars:
-                decl = self.declared_vars[decl_name]
-            else:
-                decl_type = decl.getSort()
-                decl_type = self._cvc5_type_to_type(decl_type)
-                decl = self.mgr.Symbol(decl_name, decl_type)
-                self.declared_vars[decl_name] = decl
-            res = self.mgr.Function(decl, args)
-        ## The following are the conversion of the operators
-        elif expr.getKind() == self.Kind.PI:
-            op = self.mgr.PI
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.ITE:
-            op = self.mgr.Ite
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.EQUAL:
-            op = self.mgr.Equals
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.DISTINCT:
-            op = self.mgr.Distinct
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.AND:
-            op = self.mgr.And
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.OR:
-            op = self.mgr.Or
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.NOT:
-            op = self.mgr.Not
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.IMPLIES:
-            op = self.mgr.Implies
-            res = self._back_fun(op, args, fix_real=[1,2])
-        elif expr.getKind() == self.Kind.LEQ:
-            op = self.mgr.LE
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.LT:
-            op = self.mgr.LT
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.GEQ:
-            op = self.mgr.GE
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.GT:
-            op = self.mgr.GT
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.ADD:
-            op = self.mgr.Plus
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.SUB:
-            op = self.mgr.Minus
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.MULT:
-            op = self.mgr.Times
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.DIVISION:
-            op = self.mgr.Div
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.POW:
-            op = self.mgr.Pow
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.SQRT:
-            op = self.mgr.Sqrt
-            res = self._back_fun(op, args)
-        elif expr.getKind() == self.Kind.STORE:
-            op = self.mgr.Store 
-            res = self._back_fun(op, args, fix_real=[2]) # the third arg is the set value of array
-        elif expr.getKind() == self.Kind.INTERNAL_KIND:
-            op = self.parse_op(expr)
-            res = self._back_fun(op, args)
+    
+    def parse_op(self, expr):
+        str_expr = str(expr)
+        str_op = str_expr.split(" ")[0][1:]
+        if str_op == "+":
+            return self.mgr.Plus
+        elif str_op == "-":
+            return self.mgr.Minus
+        elif str_op == "*":
+            return self.mgr.Times
+        elif str_op == "/":
+            return self.mgr.Div
+        else:
+            raise PysmtTypeError(f"Unsupported operator {str_op} in the expression: {expr}")
+    
+    def _back_op(self, expr, args):
+        """ The following are the conversion of the operators """
+        fix_real = []
+        if expr.getKind() == self.Kind.PI: op = self.mgr.PI
+        elif expr.getKind() == self.Kind.ITE: op, fix_real = self.mgr.Ite, [1,2]
+        elif expr.getKind() == self.Kind.EQUAL: op = self.mgr.Equals
+        elif expr.getKind() == self.Kind.DISTINCT: op = self.mgr.Distinct
+        elif expr.getKind() == self.Kind.AND: op = self.mgr.And
+        elif expr.getKind() == self.Kind.OR: op = self.mgr.Or
+        elif expr.getKind() == self.Kind.NOT: op = self.mgr.Not
+        elif expr.getKind() == self.Kind.IMPLIES: op = self.mgr.Implies
+        elif expr.getKind() == self.Kind.LEQ: op = self.mgr.LE
+        elif expr.getKind() == self.Kind.LT: op = self.mgr.LT
+        elif expr.getKind() == self.Kind.GEQ: op = self.mgr.GE
+        elif expr.getKind() == self.Kind.GT: op = self.mgr.GT
+        elif expr.getKind() == self.Kind.ADD: op = self.mgr.Plus
+        elif expr.getKind() == self.Kind.SUB: op = self.mgr.Minus
+        elif expr.getKind() == self.Kind.MULT: op = self.mgr.Times
+        elif expr.getKind() == self.Kind.DIVISION: op = self.mgr.Div
+        elif expr.getKind() == self.Kind.POW: op = self.mgr.Pow
+        elif expr.getKind() == self.Kind.SQRT: op = self.mgr.Sqrt
+        elif expr.getKind() == self.Kind.EXPONENTIAL: op = self.mgr.Exp
+        elif expr.getKind() == self.Kind.SINE: op = self.mgr.Sin
+        elif expr.getKind() == self.Kind.COSINE: op = self.mgr.Cos
+        elif expr.getKind() == self.Kind.TANGENT: op = self.mgr.Tan
+        elif expr.getKind() == self.Kind.ARCSINE: op = self.mgr.ASin
+        elif expr.getKind() == self.Kind.ARCCOSINE: op = self.mgr.ACos
+        elif expr.getKind() == self.Kind.ARCTANGENT: op = self.mgr.ATan
+        elif expr.getKind() == self.Kind.ARCCOSECANT: op = self.mgr.ACsc
+        elif expr.getKind() == self.Kind.ARCCOTANGENT: op = self.mgr.ACot
+        elif expr.getKind() == self.Kind.ARCSECANT: op = self.mgr.ASec
+        elif expr.getKind() == self.Kind.STORE: op, fix_real = self.mgr.Store, [2]
+        elif expr.getKind() == self.Kind.INTERNAL_KIND: op = self.parse_op(expr)
         else:
             raise PysmtTypeError(f"Unsupported expression: {expr}, whose Sort is {expr.getSort()} Kind is {expr.getKind()}")        
+        res = self._back_fun(op, args, fix_real)
         return res
 
     @catch_conversion_error
@@ -553,7 +528,7 @@ class CVC5Converter(Converter, DagWalker):
     def walk_exists(self, formula, args, **kwargs):
         (bound_formula, var_list) = \
                  self._rename_bound_variables(args[0], formula.quantifier_vars())
-        bound_vars_list = self.mkTerm(self.Kind.VARIABLE_LIST, var_list)
+        bound_vars_list = self.mkTerm(self.Kind.VARIABLE_LIST, *var_list)
         return self.mkTerm(self.Kind.EXISTS,
                            bound_vars_list,
                            bound_formula)
@@ -598,6 +573,15 @@ class CVC5Converter(Converter, DagWalker):
             return self.mkTerm(self.Kind.INTS_DIVISION, args[0], args[1])
         else:
             return self.mkTerm(self.Kind.DIVISION, args[0], args[1])
+        
+    def walk_gcd(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc5 does not support gcd function")
+    
+    def walk_lcm(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc5 does not support lcm function")
+    
+    def walk_binomial(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc5 does not support binomial function")
 
     """_summary_
         The following are non-linear arithmetic operations
@@ -645,8 +629,39 @@ class CVC5Converter(Converter, DagWalker):
     def walk_sin(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.SINE, args[0])
     
+    def walk_cos(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.COSINE, args[0])
+    
+    def walk_tan(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.TANGENT, args[0])
+    
+    def walk_asin(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.ARCSINE, args[0])
+    
+    def walk_acos(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.ARCCOSINE, args[0])
+    
+    def walk_atan(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.ARCTANGENT, args[0])
+    
+    def walk_acsc(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.ARCCOSECANT, args[0])
+    
+    def walk_acot(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.ARCCOTANGENT, args[0])
+    
+    def walk_asec(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.ARCSECANT, args[0])
+    
     def walk_toreal(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.TO_REAL, args[0])
+    
+    def walk_realtoint(self, formula, args, **kwargs):
+        return self.mkTerm(self.Kind.TO_INTEGER, args[0])
+
+    def walk_round(self, formula, args, **kwargs):
+        """ exactly same with walk_realtoint """
+        return self.mkTerm(self.Kind.TO_INTEGER, args[0])
     
     def walk_pi(self, formula, args, **kwargs):
         return self.mkPi()
@@ -658,6 +673,11 @@ class CVC5Converter(Converter, DagWalker):
     """_summary_
     The following are complex arithmetic operations
     """
+    def walk_tocomplex(self, formula, args, **kwargs):
+        """ complex_variable of (a+bi) """
+        real, image = args
+        return ComplexExpr(real, image)
+    
     def walk_complex_equals(self, formula, args, **kwargs):
         """ complex_equals of (a+bi) = (c+di) """
         a, b = args[0]
@@ -714,6 +734,14 @@ class CVC5Converter(Converter, DagWalker):
         image_cvc5term = self.walk_div(formula, (numerator_image, denominator))
         cvc5term = ComplexExpr(real_cvc5term, image_cvc5term)
         return cvc5term
+    
+    def walk_complex_abs(self, formula, args, **kwargs):
+        """ complex_abs of (a+bi) """
+        a, b = args[0]
+        a_square = self.walk_times(formula, (a, a))
+        b_square = self.walk_times(formula, (b, b))
+        sum_square = self.walk_plus(formula, (a_square, b_square))
+        return self.walk_sqrt(formula, (sum_square,))
 
     """_summary_
     MISC. operations
@@ -724,10 +752,19 @@ class CVC5Converter(Converter, DagWalker):
     def walk_array_select(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.SELECT, args[0], args[1])
     
+    def walk_array_value(self, formula, args, **kwargs):
+        idx_type = self._type_to_cvc5(formula.array_value_index_type())
+        val_type = args[0].getSort()
+        arraysort = self.mkArraySort(idx_type, val_type)
+        cvc5term = self.mkConstArray(arraysort, args[0])
+        for (i, c) in enumerate(args[1::2]):
+            cvc5term = self.mkTerm(self.Kind.STORE, cvc5term, i, c)
+        return cvc5term
+        
     def walk_bv_constant(self, formula, **kwargs):
-        vrepr = str(formula.constant_value())
+        vrepr = int(formula.constant_value())
         width = formula.bv_width()
-        return self.mkBitVector(width, self.mkInteger(vrepr))
+        return self.mkBitVector(width, vrepr)
 
     def walk_bv_ult(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.BITVECTOR_ULT, args[0], args[1])
@@ -757,7 +794,7 @@ class CVC5Converter(Converter, DagWalker):
         return self.mkTerm(self.Kind.BITVECTOR_XOR, args[0], args[1])
 
     def walk_bv_add(self, formula, args, **kwargs):
-        return self.mkTerm(self.Kind.BITVECTOR_PLUS, args[0], args[1])
+        return self.mkTerm(self.Kind.BITVECTOR_ADD, args[0], args[1])
 
     def walk_bv_sub(self, formula, args, **kwargs):
         return self.mkTerm(self.Kind.BITVECTOR_SUB, args[0], args[1])

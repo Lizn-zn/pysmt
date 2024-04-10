@@ -299,8 +299,8 @@ class SmtLibBasicSolver(SmtLibSolver):
     def assert_(self, expr, named=None):
         return self.add_assertion(expr, named)
 
-    def check_sat(self):
-        return self.solve()
+    def check_sat(self, assumptions=None):
+        return self.solve(assumptions)
 
     def get_values(self, exprs):
         return self.get_values(exprs)

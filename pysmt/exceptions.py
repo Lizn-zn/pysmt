@@ -58,6 +58,16 @@ class UnsupportedOperatorError(PysmtException):
 
     def __str__(self):
         return self.message
+    
+class OperatorMissingError(PysmtException):
+    """The operator is missing."""
+    def __init__(self, message=None, expression=None):
+        PysmtException.__init__(self)
+        self.message = message
+        self.expression=expression
+
+    def __str__(self):
+        return self.message
 
 class DefinitionMissingError(PysmtException):
     """The definition of a symbol is missing."""
@@ -123,6 +133,10 @@ class InvalidSetOption(PysmtException):
 
     def __str__(self):
         return self.message
+    
+class InvalidCommandArgs(PysmtException):
+    """The smt-lib command arguments are not valid."""
+    pass
 
 """ __summary__
     The following is for SMT solvers' exceptions

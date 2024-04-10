@@ -229,7 +229,7 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
         self.res_type = sres
         assert sres in ['unknown', 'sat', 'unsat']
         if sres == 'unknown':
-            raise SolverReturnedUnknownResultError
+            raise SolverReturnedUnknownResultError("z3 returns unknown")
         elif sres == 'unsat':
             raise ModelUnsatError("z3 returns unsat")
         return (sres == 'sat')
@@ -339,6 +339,7 @@ class Z3Converter(Converter, DagWalker):
             z3.Z3_OP_MUL: lambda args, expr: self.mgr.Times(args),
             z3.Z3_OP_ADD: lambda args, expr: self.mgr.Plus(args),
             z3.Z3_OP_DIV: lambda args, expr: self.mgr.Div(args[0], args[1]),
+            z3.Z3_OP_MOD: lambda args, expr: self.mgr.Modulo(args[0], args[1]),
             z3.Z3_OP_IFF: lambda args, expr: self.mgr.Iff(args[0], args[1]),
             z3.Z3_OP_XOR: lambda args, expr:  self.mgr.Xor(args[0], args[1]),
             z3.Z3_OP_FALSE: lambda args, expr: self.mgr.FALSE(),
@@ -604,14 +605,18 @@ class Z3Converter(Converter, DagWalker):
                     warnings.warn("Defining new symbol: %s" % str(expr))
                     return self.mgr.FreshSymbol(symb_type,
                                                 template="__z3_%d")
+        elif z3.is_to_int(expr):
+            return self.mgr.Round(args[0])
+        elif z3.is_to_real(expr):
+            return self.mgr.ToReal(args[0])
         elif z3.is_function(expr):
             # This needs to be after we try to convert regular Symbols
             fsymbol = self.mgr.get_symbol(expr.decl().name())
             return self.mgr.Function(fsymbol, args)
-        # elif z3.is_rec_function(expr):
-        #     # This needs to be after we try to convert regular Symbols
-        #     fsymbol = self.mgr.get_symbol(expr.decl().name())
-        #     return self.mgr.Function(fsymbol, args)
+        elif z3.is_rec_function(expr):
+            # This needs to be after we try to convert regular Symbols
+            fsymbol = self.mgr.get_symbol(expr.decl().name())
+            return self.mgr.Function(fsymbol, args)
 
         # If we reach this point, we did not manage to translate the expression
         raise ConvertExpressionError(message=("Unsupported expression: %s" %
@@ -888,8 +893,6 @@ class Z3Converter(Converter, DagWalker):
 
     def walk_round(self, formula, args, **kwargs):
         """ exactly same with walk_realtoint """
-        # z3term = z3.Z3_mk_real2int(self.ctx.ref(), args[0])
-        # z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return self.walk_realtoint(formula, args)
     
     def walk_sqrt(self, formula, args, **kwargs):
@@ -908,6 +911,15 @@ class Z3Converter(Converter, DagWalker):
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
         return z3term
     
+    def walk_gcd(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support gcd")
+    
+    def walk_lcm(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support lcm")
+    
+    def walk_binomial(self, formula, args, **kwargs):
+        raise InternalSolverError("cvc5 does not support binomial function")
+    
     def walk_exp(self, formula, args, **kwargs):
         raise InternalSolverError("Z3 does not support exponential")
     
@@ -918,11 +930,43 @@ class Z3Converter(Converter, DagWalker):
         raise InternalSolverError("Z3 does not support pi")
 
     def walk_e(self, formula, args, **kwargs):
-        raise InternalSolverError("Z3 does not support exponen")
+        raise InternalSolverError("Z3 does not support exponential constant")
+    
+    def walk_sin(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support sine function")
+    
+    def walk_cos(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support cosine function")
+    
+    def walk_tan(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support tangent function")
+    
+    def walk_asin(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support arcsine function")
+    
+    def walk_acos(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support arccosine function")
+    
+    def walk_atan(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support arctangent function")
+    
+    def walk_acsc(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support arccosecant function")
+    
+    def walk_acot(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support arccotangent function")
+    
+    def walk_asec(self, formula, args, **kwargs):
+        raise InternalSolverError("Z3 does not support arcsecant function")
 
     """_summary_
     The following are complex arithmetic operations
     """
+    def walk_tocomplex(self, formula, args, **kwargs):
+        """ complex_variable of (a+bi) """
+        real, image = args
+        return ComplexExpr(real, image)
+    
     def walk_complex_equals(self, formula, args, **kwargs):
         """ complex_equals of a+bi = c+di """
         a, b = args[0]
@@ -989,11 +1033,22 @@ class Z3Converter(Converter, DagWalker):
         z3.Z3_inc_ref(self.ctx.ref(), image_z3term)
         z3term = ComplexExpr(real_z3term, image_z3term)
         return z3term
-    
+
+    def walk_complex_abs(self, formula, args, **kwargs):
+        """ complex_abs of (a+bi) """
+        a, b = args[0]
+        a_square = self.walk_times(formula, (a, a))
+        b_square = self.walk_times(formula, (b, b))
+        sum_square = self.walk_plus(formula, (a_square, b_square))
+        z3term = self.walk_sqrt(formula, (sum_square,))
+        z3.Z3_inc_ref(self.ctx.ref(), z3term)
+        return z3term
 
     """_summary_
         MISC. operations
     """
+    def walk_str_constant(self, formula, **kwargs):
+        raise InternalSolverError("Z3 does not support string constants")
 
     def walk_bv_constant(self, formula, **kwargs):
         value = formula.constant_value()

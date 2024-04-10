@@ -114,6 +114,9 @@ class IdentityDagWalker(DagWalker):
     
     def walk_div(self, formula, args, **kwargs):
         return self.mgr.Div(args[0], args[1])
+    
+    def walk_abs(self, formula, args, **kwargs):
+        return self.mgr.Abs(args[0])
 
     def walk_intdiv(self, formula, args, **kwargs):
         return self.mgr.IntDiv(args[0], args[1])
@@ -136,6 +139,9 @@ class IdentityDagWalker(DagWalker):
     def walk_cos(self, formula, args, **kwargs):
         return self.mgr.Cos(args[0])
 
+    def walk_tan(self, formula, args, **kwargs):
+        return self.mgr.Tan(args[0])
+    
     def walk_asin(self, formula, args, **kwargs):
         return self.mgr.ASin(args[0])
     
@@ -144,6 +150,15 @@ class IdentityDagWalker(DagWalker):
 
     def walk_atan(self, formula, args, **kwargs):
         return self.mgr.ATan(args[0])
+    
+    def walk_acot(self, formula, args, **kwargs):
+        return self.mgr.ACot(args[0])
+    
+    def walk_acsc(self, formula, args, **kwargs):
+        return self.mgr.ACsc(args[0])
+    
+    def walk_asec(self, formula, args, **kwargs):
+        return self.mgr.ASec(args[0])
 
     def walk_gcd(self, formula, args, **kwargs):
         return self.mgr.GCD(args[0], args[1])

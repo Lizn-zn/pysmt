@@ -24,7 +24,7 @@ from collections import deque
 import pysmt.smtlib.commands as smtcmd
 from pysmt.environment import get_env, reset_env
 from pysmt.logics import get_logic_by_name, UndefinedLogicError
-from pysmt.exceptions import UnknownSmtLibCommandError, PysmtSyntaxError
+from pysmt.exceptions import UnknownSmtLibCommandError, OperatorMissingError, DefinitionMissingError, PysmtSyntaxError
 from pysmt.exceptions import PysmtTypeError
 from pysmt.smtlib.script import SmtLibCommand, SmtLibScript
 from pysmt.smtlib.annotations import Annotations
@@ -397,17 +397,13 @@ class SmtLibParser(object):
                             '=>':self._operator_adapter(mgr.Implies),
                             '<->':self._operator_adapter(mgr.Iff),
                             # add by zenan
-                            '^': self._operator_adapter(mgr.Pow),
                             'div': self._operator_adapter(self._intdivision),
                             'mul':self._operator_adapter(self._times_or_ctimes),
-                            'round': self._operator_adapter(mgr.Round),
-                            'to_int':self._operator_adapter(mgr.Round),
-                            **{abs: self._operator_adapter(mgr.Abs) for abs in ["abs", "ABS"]},
-                            'expt': self._operator_adapter(mgr.Pow),
-                            'power': self._operator_adapter(mgr.Pow),
+                            **{round: self._operator_adapter(mgr.Round) for round in ["round", "to_int"]},
+                            **{abs: self._operator_adapter(self._abs_or_cabs) for abs in ["abs", "ABS"]},
+                            **{power: self._operator_adapter(mgr.Pow) for power in ["power", "expt", "^"]},
                             'exp': self._operator_adapter(lambda formula:mgr.Pow(base=mgr.E(), exponent=formula)),
-                            'ceil': self._operator_adapter(mgr.Ceil),
-                            'ceiling': self._operator_adapter(mgr.Ceil),
+                            **{ceil: self._operator_adapter(mgr.Ceil) for ceil in ["ceil", "ceiling"]},
                             'floor': self._operator_adapter(mgr.Floor),
                             'log': self._operator_adapter(mgr.Logarithm),
                             'log2': self._operator_adapter(lambda formula:mgr.Log_base(formula, base=mgr.Int(2))),
@@ -417,24 +413,25 @@ class SmtLibParser(object):
                             'sqrt': self._operator_adapter(mgr.Sqrt),
                             'cbrt': self._operator_adapter(mgr.Cbrt),
                             'square': self._operator_adapter(lambda formula:mgr.Pow(formula, exponent=mgr.Int(2))),
-                            'if': self._operator_adapter(self._logic_or_numer_ite), 
-                            'Ite': self._operator_adapter(self._logic_or_numer_ite), 
+                            **{Ite: self._operator_adapter(self._logic_or_numer_ite) for Ite in ["Ite", "if"]},
                             'dec': self._operator_adapter(lambda formula:self._minus_or_uminus(formula, mgr.Int(1))),
                             'inc': self._operator_adapter(lambda formula:self.Plus(formula, mgr.Int(1))),
                             'gcd': self._operator_adapter(mgr.GCD),
                             'lcm': self._operator_adapter(mgr.LCM),
                             'prime': self._operator_adapter(mgr.Prime),
                             'even': self._operator_adapter(mgr.Even),
-                            'factorial': self._operator_adapter(self._factorial),
-                            'fact': self._operator_adapter(self._factorial),
-                            'binomial': self._operator_adapter(mgr.Binomial),
-                            'choose': self._operator_adapter(mgr.Binomial),
+                            **{divides: self._operator_adapter(mgr.Divides) for divides in ["divides", "divisible"]},
+                            **{factorial: self._operator_adapter(self._factorial) for factorial in ["factorial", "fact"]},
+                            **{binomial: self._operator_adapter(mgr.Binomial) for binomial in ["Binomial", "binomial", "choose"]},
                             'sin': self._operator_adapter(mgr.Sin),
                             'cos': self._operator_adapter(mgr.Cos),
                             'tan': self._operator_adapter(mgr.Tan),
-                            'asin': self._operator_adapter(mgr.ASin),
-                            'acos': self._operator_adapter(mgr.ACos),
-                            'atan': self._operator_adapter(mgr.ATan),
+                            **{asin: self._operator_adapter(mgr.ASin) for asin in ["asin", "arcsin"]},
+                            **{acos: self._operator_adapter(mgr.ACos) for acos in ["acos", "arccos"]},
+                            **{atan: self._operator_adapter(mgr.ATan) for atan in ["atan", "arctan"]},
+                            **{acsc: self._operator_adapter(mgr.ACsc) for acsc in ["acsc", "arccsc"]},
+                            **{acot: self._operator_adapter(mgr.ACot) for acot in ["acot", "arccot"]},
+                            **{asec: self._operator_adapter(mgr.ASec) for asec in ["asec", "arcsec"]},
                             'complex': self._operator_adapter(mgr.ToComplex),
                             ####
                             'ite':self._operator_adapter(self._logic_or_numer_ite),
@@ -656,6 +653,15 @@ class SmtLibParser(object):
                 new_args = [mgr.ToComplex(a) for a in args]
                 return mgr.Complex_Div(new_args)
         return self._division(*args)
+    
+    def _abs_or_cabs(self, *args):
+        """ Utility function that handles both real and complex abs """
+        mgr = self.env.formula_manager
+        for arg in args:
+            atype = mgr.get_type(arg)
+            if atype == self.env.type_manager.COMPLEX():
+                return mgr.Complex_Abs(mgr.ToComplex(arg))
+        return mgr.Abs(args[0])
 
     def _enter_smtlib_as(self, stack, tokens, key):
         """Utility function that handles 'as' that is a special function in SMTLIB"""
@@ -777,7 +783,8 @@ class SmtLibParser(object):
         """Utility function that treats = between booleans as <->"""
         mgr = self.env.formula_manager
         lty = self.get_type(left)
-        if lty == self.env.type_manager.BOOL():
+        rty = self.get_type(right)
+        if lty == self.env.type_manager.BOOL() or rty == self.env.type_manager.BOOL():
             return mgr.Iff(left, right)
         else:
             ltype, rtype = mgr.get_type(left), mgr.get_type(right)
@@ -1005,10 +1012,12 @@ class SmtLibParser(object):
 
                     try:
                         res = fun(*lst)
-                    except TypeError as err:
+                    except (AttributeError, TypeError) as err:
                         if not callable(fun):
-                            raise NotImplementedError("Unknown function '%s'" % fun)
-                        raise err
+                            raise OperatorMissingError("Unknown operator %s, it is not defined" % fun)
+                        else:
+                            raise DefinitionMissingError("Error while parsing '%s', " % str(fun).split(' ')[2] +
+                                                     "this may due to some undefined variables: %s" % err)
 
                     if len(stack) > 0:
                         stack[-1].append(res)
@@ -1495,6 +1504,7 @@ class SmtLibParser(object):
     def _cmd_declare_const(self, current, tokens):
         """(declare-const <symbol> <sort>)"""
         var = self.parse_atom(tokens, current)
+        self._check_dict(var, ['interpreted', 'constants'])
         typename = self.parse_type(tokens, current)
         self.consume_closing(tokens, current)
         v = self._get_var(var, typename)

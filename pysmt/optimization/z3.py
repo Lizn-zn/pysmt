@@ -66,6 +66,8 @@ class Z3NativeOptimizer(Optimizer, Z3Solver):
         h = self._assert_z3_goal(goal)
 
         res = self.z3.check()
+        sres = str(res)
+        self.res_type = sres
         if res == z3.sat:
             try:
                 if goal.is_maxsmt_goal():

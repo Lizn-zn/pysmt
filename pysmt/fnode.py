@@ -179,7 +179,6 @@ class FNode(object):
                     return False
                 if self._content.payload[1] != _type.width:
                     return False
-
         if value is not None:
             return value == self.constant_value()
         return True
@@ -591,8 +590,12 @@ class FNode(object):
 
     def constant_value(self):
         """Return the value of the Constant."""
-        assert self.is_constant()
+        assert self.is_constant() or self.is_PI() or self.is_E()
         if self.node_type() == BV_CONSTANT:
+            return self._content.payload[0]
+        elif self.node_type() == PI:
+            return self._content.payload[0]
+        elif self.node_type() == E:
             return self._content.payload[0]
         return self._content.payload
 
