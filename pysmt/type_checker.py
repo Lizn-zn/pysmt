@@ -74,10 +74,10 @@ class SimpleTypeChecker(walkers.DagWalker):
         #pylint: disable=unused-argument
         return self.walk_type_to_type(formula, args, INT, BOOL)
     
-    @walkers.handles(op.COMPLEX_VARIABLE)
+    @walkers.handles(op.TOCOMPLEX)
     def walk_real_to_complex(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
-        return self.walk_type_to_type(formula, args, REAL, COMPLEX)
+        return COMPLEX
 
     def walk_real_to_real(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
@@ -93,10 +93,16 @@ class SimpleTypeChecker(walkers.DagWalker):
         if rval is None:
             rval = self.walk_type_to_type(formula, args, COMPLEX, COMPLEX)
         return rval
+    
+    @walkers.handles(op.COMPLEX_ABS)
+    def walk_complex_to_real(self, formula, args, **kwargs):
+        #pylint: disable=unused-argument
+        return self.walk_type_to_type(formula, args, COMPLEX, REAL)
 
     @walkers.handles(op.POW)
     def walk_intonly_or_real(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
+        # we convert int^int to ToReal(int^int) even though 2^-1 is intrically real
         for x in args:
             if x != INT and x != REAL:
                 return None
@@ -120,7 +126,8 @@ class SimpleTypeChecker(walkers.DagWalker):
             return None
 
     @walkers.handles(op.PI, op.E, op.SQRT, op.LOG, op.EXP) 
-    @walkers.handles(op.SIN, op.COS, op.ASIN, op.ACOS, op.ATAN)
+    @walkers.handles(op.SIN, op.COS, op.TAN)
+    @walkers.handles(op.ASIN, op.ACOS, op.ATAN, op.ACOT, op.ACSC, op.ASEC)
     def walk_nra(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
         return REAL

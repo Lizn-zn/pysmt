@@ -4,6 +4,8 @@ from pysmt.smtlib.parser import SmtLibParser, SmtLibScript
 from io import StringIO
 from pysmt.shortcuts import Solver, Optimizer, REAL, INT, get_env
 import json
+from multiprocessing import Pool
+
 
 def pysmt_solver(statement, solver_name):
     smt_parser = SmtLibParser()
@@ -27,9 +29,12 @@ def pysmt_solver(statement, solver_name):
 def test_solver(statement, solver_name):
     """尝试使用指定的求解器解决问题并返回结果。"""
     try:
-        res = pysmt_solver(statement, solver_name=solver_name)
+        pool = Pool(1)
+        future_res = {}
+        tmp_solver = pool.apply_async(pysmt_solver, (statement, solver_name))
+        future_res[solver_name] = tmp_solver
+        res = future_res[solver_name].get(10)
         print(f"{solver_name.upper()} Pass! Output: SAT:={res[0]}, MODEL:={res[1]}")
-        return True
     except Exception as e:
         # covert solver_name to upper caption
         print(f"{solver_name.upper()} failed with error: {e}")
@@ -41,8 +46,7 @@ with open("test_cases.json", "r") as file:
 for idx, case in test_cases.items():
     print(f"Testing case {idx} with topic '{case['topic']}'...")
 
-    # solvers = ['z3', 'cvc4', 'msat', 'cvc5']
-    solvers = ['cvc5']
+    solvers = ['z3', 'cvc5', 'cvc4', 'msat']
     all_passed = True
 
     for solver in solvers:

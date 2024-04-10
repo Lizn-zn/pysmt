@@ -198,16 +198,22 @@ class Simplifier(pysmt.walkers.DagWalker):
 
         sl = args[0]
         sr = args[1]
-
-        if sl.is_constant() and sr.is_constant():
+        
+        if (sl.is_constant() or sl.is_PI() or sl.is_E()) \
+            and (sr.is_constant() or sr.is_PI() or sr.is_E()):
             l = sl.constant_value()
             r = sr.constant_value()
             return self.manager.Bool(l == r)
         elif sl == sr:
             return self.manager.TRUE()
+        elif sl.is_PI() and sr.is_constant():
+            return self.manager.FALSE()
+        elif sr.is_PI() and sl.is_constant():
+            return self.manager.FALSE()
         else:
             return self.manager.Equals(sl, sr)
 
+    @handles(op.ITE, op.NUMER_ITE)
     def walk_ite(self, formula, args, **kwargs):
         assert len(args) == 3
         si = args[0]
@@ -230,7 +236,8 @@ class Simplifier(pysmt.walkers.DagWalker):
         sl = args[0]
         sr = args[1]
 
-        if sl.is_constant() and sr.is_constant():
+        if (sl.is_constant() or sl.is_PI() or sl.is_E()) \
+            and (sr.is_constant() or sr.is_PI() or sr.is_E()):
             l = sl.constant_value()
             r = sr.constant_value()
             return self.manager.Bool(l <= r)
@@ -251,7 +258,8 @@ class Simplifier(pysmt.walkers.DagWalker):
         sl = args[0]
         sr = args[1]
 
-        if sl.is_constant() and sr.is_constant():
+        if (sl.is_constant() or sl.is_PI() or sl.is_E()) \
+            and (sr.is_constant() or sr.is_PI() or sr.is_E()):
             l = sl.constant_value()
             r = sr.constant_value()
             return self.manager.Bool(l < r)
@@ -443,6 +451,16 @@ class Simplifier(pysmt.walkers.DagWalker):
                 return self.manager._Algebraic(Numeral(l**r))
 
         return self.manager.Pow(args[0], args[1])
+
+    def walk_sqrt(self, formula, args, **kwargs):
+        if args[0].is_constant():
+            val = args[0].constant_value()
+            if val < 0: 
+                return self.manager.Sqrt(args[0])
+            sqrt_val = math.sqrt(val)
+            if int(sqrt_val) == sqrt_val:
+                return self.manager.Int(int(sqrt_val))
+        return self.manager.Sqrt(args[0])
     
     def walk_mod(self, formula, args, **kwargs):
 
@@ -489,6 +507,10 @@ class Simplifier(pysmt.walkers.DagWalker):
             else:
                 return self.manager.Int(0)
         return self.manager.Minus(sl, sr)
+    
+    def walk_tocomplex(self, formula, args, **kwargs):
+        assert len(args) == 2
+        return self.manager.ToComplex(args[0], args[1])
 
     def walk_function(self, formula, args, **kwargs):
         return self.manager.Function(formula.function_name(), args)
@@ -1126,10 +1148,16 @@ class Simplifier(pysmt.walkers.DagWalker):
                 return self.manager.Int(int(s.constant_value()))
             except ValueError:
                 return self.manager.Int(-1)
+        elif s.is_algebraic_constant():
+            try:
+                val = eval(str(s.constant_value()).replace("?",""))
+                return self.manager.Int(int(val))
+            except ValueError:
+                return self.manager.Int(-1)
         elif s.is_int_constant():
             return self.manager.Int(s.constant_value())
         return self.manager.RealToInt(s)
-
+    
 
     @handles(op.SYMBOL)
     @handles(op.REAL_CONSTANT, op.INT_CONSTANT, op.BOOL_CONSTANT)

@@ -1,14 +1,20 @@
 statement = """
-(declare-fun A () Int)
+(declare-const lower_bound Real)
+(declare-const upper_bound Real)
+(declare-const int_count Int)
 
-(assert (< A 0))
-(assert (= (abs A) 100))
+; Define the lower and upper bounds
+(assert (= lower_bound (sqrt 5)))
+(assert (= upper_bound (sqrt 50)))
+
+; The number of integers between two real numbers is the difference between the floor of the upper bound and the ceiling of the lower bound, plus one
+(assert (= int_count (+ (- (to_int upper_bound) (to_int (ceil lower_bound))) 1)))
 
 (check-sat)
-(get-value (A))
+(get-value (int_count))
 """
 
-topic = "ABS"
+topic = "TOINT"
 
 import json
 ### read json file
