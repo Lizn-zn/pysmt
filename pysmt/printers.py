@@ -599,7 +599,6 @@ class BottemaPrinter(TreeWalker):
     def walk_complex_equals(self, formula): return self.walk_nary(formula, " = ")
     def walk_le(self, formula): return self.walk_nary(formula, " <= ")
     def walk_lt(self, formula): return self.walk_nary(formula, " < ")
-    def walk_abs(self, formula): return self.walk_single_input_operator(formula, 'abs')
     def walk_sqrt(self, formula): return self.walk_single_input_operator(formula, 'sqrt')
     def walk_pi(self, formula): self.write("pi")
     def walk_e(self, formula): self.write("e")
