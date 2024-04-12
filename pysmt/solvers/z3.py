@@ -906,6 +906,7 @@ class Z3Converter(Converter, DagWalker):
                                   str(0),
                                   self.z3IntSort.ast)
         cond = z3.Z3_mk_ge(self.ctx.ref(), args[0], z3zero)
+        z3.Z3_inc_ref(self.ctx.ref(), cond)
         z3negarg = z3.Z3_mk_unary_minus(self.ctx.ref(), args[0])
         z3term = z3.Z3_mk_ite(self.ctx.ref(), cond, args[0], z3negarg)
         z3.Z3_inc_ref(self.ctx.ref(), z3term)
