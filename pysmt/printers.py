@@ -475,7 +475,9 @@ class BottemaPrinter(TreeWalker):
         self.write("(")
         args = formula.args()
         for s in args[:-1]:
-            if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+            if s.is_constant() and \
+                is_pysmt_fraction(s.constant_value()) and \
+                    s.constant_value().denominator != 1:
                 self.write("(")
                 yield s
                 self.write(")")
@@ -483,7 +485,9 @@ class BottemaPrinter(TreeWalker):
                 yield s
             self.write(ops)
         s = args[-1]
-        if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+        if s.is_constant() and \
+            is_pysmt_fraction(s.constant_value()) and \
+                s.constant_value().denominator != 1:
             self.write("(")
             yield s
             self.write(")")
