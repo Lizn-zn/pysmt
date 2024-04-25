@@ -28,7 +28,7 @@ from functools import partial
 from pysmt.exceptions import (NoSolverAvailableError, SolverRedefinitionError,
                               NoLogicAvailableError,
                               SolverAPINotFound)
-from pysmt.logics import QF_UFLIRA, LRA, QF_UFLRA, QF_LIA, QF_NIRA
+from pysmt.logics import AUTO, NRA, QF_NRA, QF_UFLIRA, LRA, QF_UFLRA, QF_LIA, QF_NIRA
 from pysmt.logics import AUTO as AUTO_LOGIC
 from pysmt.logics import most_generic_logic, get_closer_logic
 from pysmt.logics import convert_logic_from_string
@@ -51,7 +51,7 @@ DEFAULT_PREFERENCES = {'Solver': ['msat', 'optimsat', 'z3', 'cvc4', 'yices', 'bt
                                      'msat_sua', 'optimsat_sua', 'yices_sua', 'z3_sua'
                                     ],
                        'Interpolator': ['msat', 'optimsat', 'z3']}
-DEFAULT_LOGICS = [QF_NIRA, QF_UFLIRA]
+DEFAULT_LOGICS = [AUTO, NRA, QF_NRA, QF_NIRA, QF_UFLIRA]
 DEFAULT_QE_LOGIC = LRA
 DEFAULT_INTERPOLATION_LOGIC = QF_UFLRA
 DEFAULT_OPTIMIZER_LOGIC = QF_LIA
@@ -177,7 +177,6 @@ class Factory(object):
                         logic = avail_logic[0]
                     else:
                         raise NoLogicAvailableError("Cannot automatically select a logic")
-
             closer_logic = get_closer_logic(SolverClass.LOGICS, logic)
 
             return SolverClass, closer_logic
