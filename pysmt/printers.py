@@ -57,7 +57,7 @@ class HRPrinter(TreeWalker):
         self.write(")")
     
     def walk_term(self, formula, ops):
-        """ Note: add bracket for fraction """
+        """ Note: add bracket for fraction to differentiate (a/b)^k & a/b^k """
         self.write("(")
         args = formula.args()
         for s in args[:-1]:
@@ -466,7 +466,8 @@ class BottemaPrinter(TreeWalker):
         for s in args[:-1]:
             yield s
             self.write(ops)
-        yield args[-1]
+        s = args[-1]
+        yield s
         self.write(")")
     
     def walk_term(self, formula, ops):
@@ -535,9 +536,12 @@ class BottemaPrinter(TreeWalker):
     def walk_real_constant(self, formula):
         assert is_pysmt_fraction(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
-        # TODO: Remove this once issue 113 in gmpy2 is solved
+        # TODO: Remove this once issue 113 in gmpy2 is solved            
         v = formula.constant_value()
-        self.write(self.real_to_str(v))
+        if v < 0: # add this for -1 => (-1)
+            self.write(f"({self.real_to_str(v)})")
+        else:
+            self.write(self.real_to_str(v))
 
     def walk_int_constant(self, formula):
         assert is_pysmt_integer(formula.constant_value()), \
@@ -587,6 +591,7 @@ class BottemaPrinter(TreeWalker):
 
     def walk_and(self, formula): return self.walk_nary(formula, " , ")
     def walk_plus(self, formula): return self.walk_nary(formula, " + ")
+    def walk_minus(self, formula): return self.walk_nary(formula, " - ")
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")
     def walk_complex_plus(self, formula): return self.walk_nary(formula, " + ")
@@ -594,7 +599,6 @@ class BottemaPrinter(TreeWalker):
     def walk_complex_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_complex_div(self, formula): return self.walk_nary(formula, " / ")
     def walk_pow(self, formula): return self.walk_term(formula, " ^ ")
-    def walk_minus(self, formula): return self.walk_nary(formula, " - ")
     def walk_equals(self, formula): return self.walk_nary(formula, " = ")
     def walk_complex_equals(self, formula): return self.walk_nary(formula, " = ")
     def walk_le(self, formula): return self.walk_nary(formula, " <= ")
