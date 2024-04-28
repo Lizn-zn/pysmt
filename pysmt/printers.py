@@ -502,7 +502,7 @@ class MaplePrinter(TreeWalker):
         self.write(")")
             
     def walk_not(self, formula):
-        self.write(" &not(")
+        self.write("&not(")
         yield formula.arg(0)
         self.write(")")
 
@@ -608,6 +608,11 @@ class MaplePrinter(TreeWalker):
 
     def walk_algebraic_constant(self, formula):
         self.write(str(formula.constant_value()))
+
+    def walk_abs(self, formula):
+        self.write("sqrt((")
+        yield formula.arg(0)
+        self.write(")^2)")
 
     def walk_toreal(self, formula):
         # self.write("ToReal(")
