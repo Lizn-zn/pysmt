@@ -209,6 +209,10 @@ class FormulaManager(object):
         """
         if formula.is_not():
             return formula.arg(0)
+        elif formula.is_forall():
+            return self.Exists(formula.quantifier_vars(), self.Not(formula.arg(0)))
+        elif formula.is_exists():
+            return self.ForAll(formula.quantifier_vars(), self.Not(formula.arg(0)))
         return self.create_node(node_type=op.NOT, args=(formula,))
 
     def Implies(self, left, right):

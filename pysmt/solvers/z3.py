@@ -157,9 +157,8 @@ class Z3Solver(IncrementalTrackingSolver, UnsatCoreSolver,
         # See issue #465 (https://github.com/pysmt/pysmt/issues/465)
         
         if str(logic) in Z3Solver.SOLVERFOR_LOGIC_NAMES:
-            self.z3 = z3.SolverFor(self.logic_name)
-        else: 
-            # Note: the default logic is `auto`, which is also in this case
+            self.z3 = z3.SolverFor(str(logic))
+        else:
             self.z3 = z3.Solver()
         self.converter = Z3Converter(environment, z3_ctx=self.z3.ctx)
         self.options(self)
