@@ -486,6 +486,10 @@ class BottemaPrinter(TreeWalker):
             self.write("(")
             yield s
             self.write(")")
+        elif s.is_constant() and s.constant_value() < 0:
+            self.write("(")
+            yield s
+            self.write(")")
         else:
             yield s
         self.write(")")
