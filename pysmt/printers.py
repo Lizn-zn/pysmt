@@ -61,7 +61,9 @@ class HRPrinter(TreeWalker):
         self.write("(")
         args = formula.args()
         for s in args[:-1]:
-            if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+            if s.is_constant() and \
+                is_pysmt_fraction(s.constant_value()) and \
+                    s.constant_value().denominator != 1:
                 self.write("(")
                 yield s
                 self.write(")")
@@ -69,7 +71,9 @@ class HRPrinter(TreeWalker):
                 yield s
             self.write(ops)
         s = args[-1]
-        if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+        if s.is_constant() and \
+            is_pysmt_fraction(s.constant_value()) and \
+                s.constant_value().denominator != 1:
             self.write("(")
             yield s
             self.write(")")
@@ -131,9 +135,12 @@ class HRPrinter(TreeWalker):
     def walk_real_constant(self, formula):
         assert is_pysmt_fraction(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
-        # TODO: Remove this once issue 113 in gmpy2 is solved
+        # TODO: Remove this once issue 113 in gmpy2 is solved            
         v = formula.constant_value()
-        self.write(self.real_to_str(v))
+        if v < 0: # add this for -1 => (-1)
+            self.write(f"({self.real_to_str(v)})")
+        else:
+            self.write(self.real_to_str(v))
 
     def walk_int_constant(self, formula):
         assert is_pysmt_integer(formula.constant_value()), \
@@ -436,9 +443,8 @@ class HRPrinter(TreeWalker):
 #EOC HRPrinter
 
 
-
-class BottemaPrinter(TreeWalker):
-    """Performs serialization of a formula in a human-readable way.
+class MaplePrinter(TreeWalker):
+    """Performs serialization of a formula in maple style.
 
     E.g., Implies(And(Symbol(x), Symbol(y)), Symbol(z))  ~>   '(x * y) -> z'
     """
@@ -466,7 +472,8 @@ class BottemaPrinter(TreeWalker):
         for s in args[:-1]:
             yield s
             self.write(ops)
-        yield args[-1]
+        s = args[-1]
+        yield s
         self.write(")")
     
     def walk_term(self, formula, ops):
@@ -474,7 +481,9 @@ class BottemaPrinter(TreeWalker):
         self.write("(")
         args = formula.args()
         for s in args[:-1]:
-            if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+            if s.is_constant() and \
+                is_pysmt_fraction(s.constant_value()) and \
+                    s.constant_value().denominator != 1:
                 self.write("(")
                 yield s
                 self.write(")")
@@ -482,7 +491,9 @@ class BottemaPrinter(TreeWalker):
                 yield s
             self.write(ops)
         s = args[-1]
-        if s.is_constant() and is_pysmt_fraction(s.constant_value()):
+        if s.is_constant() and \
+            is_pysmt_fraction(s.constant_value()) and \
+                s.constant_value().denominator != 1:
             self.write("(")
             yield s
             self.write(")")
@@ -495,7 +506,7 @@ class BottemaPrinter(TreeWalker):
         self.write(")")
             
     def walk_not(self, formula):
-        self.write("(! ")
+        self.write("&not(")
         yield formula.arg(0)
         self.write(")")
 
@@ -529,6 +540,26 @@ class BottemaPrinter(TreeWalker):
         yield formula.args()[-1]
         self.write(")")
 
+    def walk_quantifier(self, op_symbol, var_sep, sep, formula):
+        if len(formula.quantifier_vars()) > 0:
+            self.write(op_symbol)
+            self.write("([")
+            for s in formula.quantifier_vars()[:-1]:
+                yield s
+                self.write(var_sep)
+            yield formula.quantifier_vars()[-1]
+            self.write("])")
+            self.write(sep)
+            yield formula.arg(0)
+        else:
+            yield formula.arg(0)
+
+    def walk_forall(self, formula):
+        return self.walk_quantifier("`&A`", ", ", " , ", formula)
+
+    def walk_exists(self, formula):
+        return self.walk_quantifier("`&E`", ", ", " , ", formula)
+
     def real_to_str(self, number):
         n, d = number.numerator, number.denominator
         if d == 1:
@@ -539,9 +570,12 @@ class BottemaPrinter(TreeWalker):
     def walk_real_constant(self, formula):
         assert is_pysmt_fraction(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
-        # TODO: Remove this once issue 113 in gmpy2 is solved
+        # TODO: Remove this once issue 113 in gmpy2 is solved            
         v = formula.constant_value()
-        self.write(self.real_to_str(v))
+        if v < 0: # add this for -1 => (-1)
+            self.write(f"({self.real_to_str(v)})")
+        else:
+            self.write(self.real_to_str(v))
 
     def walk_int_constant(self, formula):
         assert is_pysmt_integer(formula.constant_value()), \
@@ -579,6 +613,11 @@ class BottemaPrinter(TreeWalker):
     def walk_algebraic_constant(self, formula):
         self.write(str(formula.constant_value()))
 
+    def walk_abs(self, formula):
+        self.write("sqrt((")
+        yield formula.arg(0)
+        self.write(")^2)")
+
     def walk_toreal(self, formula):
         # self.write("ToReal(")
         yield formula.arg(0)
@@ -589,8 +628,12 @@ class BottemaPrinter(TreeWalker):
         yield formula.arg(0)
         # self.write(")")
 
-    def walk_and(self, formula): return self.walk_nary(formula, " , ")
+    def walk_and(self, formula): return self.walk_nary(formula, " &and ")
+    def walk_or(self, formula): return self.walk_nary(formula, " &or ")
+    def walk_iff(self, formula): return self.walk_nary(formula, " &iff ")
+    def walk_implies(self, formula): return self.walk_nary(formula, " &implies ")
     def walk_plus(self, formula): return self.walk_nary(formula, " + ")
+    def walk_minus(self, formula): return self.walk_nary(formula, " - ")
     def walk_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_div(self, formula): return self.walk_nary(formula, " / ")
     def walk_complex_plus(self, formula): return self.walk_nary(formula, " + ")
@@ -598,7 +641,6 @@ class BottemaPrinter(TreeWalker):
     def walk_complex_times(self, formula): return self.walk_nary(formula, " * ")
     def walk_complex_div(self, formula): return self.walk_nary(formula, " / ")
     def walk_pow(self, formula): return self.walk_term(formula, " ^ ")
-    def walk_minus(self, formula): return self.walk_nary(formula, " - ")
     def walk_equals(self, formula): return self.walk_nary(formula, " = ")
     def walk_complex_equals(self, formula): return self.walk_nary(formula, " = ")
     def walk_le(self, formula): return self.walk_nary(formula, " <= ")
@@ -607,7 +649,7 @@ class BottemaPrinter(TreeWalker):
     def walk_pi(self, formula): self.write("pi")
     def walk_e(self, formula): self.write("e")
 
-#EOC BottemaPrinter
+#EOC MaplePrinter
 
 class HRSerializer(object):
     """Return the serialized version of the formula as a string."""

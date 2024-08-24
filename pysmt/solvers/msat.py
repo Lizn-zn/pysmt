@@ -97,7 +97,7 @@ class MathSAT5Model(Model):
         titem = self.converter.convert(formula)
         msat_res = self._msat_lib.msat_model_eval(self.msat_model, titem)
         if self._msat_lib.MSAT_ERROR_TERM(msat_res):
-            raise InternalSolverError("get model value")
+            raise InternalSolverError("errors in get model/value")
         val = self.converter.back(msat_res)
         if self.environment.stc.get_type(formula).is_real_type() and \
                val.is_int_constant():
@@ -362,7 +362,7 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
         if not hasattr(self, 'res_type'):
             raise ModelUnavilableError("model is not available, ensure `check-sat` is executed")
         elif self.res_type != self._msat_lib.MSAT_SAT:
-            raise ModelUnsatError("msat returns unsat")
+            raise ModelUnsatError("msat returns unsat and the model does not exist")
         if isinstance(titem, ComplexExpr):
             real, image = titem
             tval = self._msat_lib.msat_get_model_value(self.msat_env(), real)
@@ -381,6 +381,8 @@ class MathSAT5Solver(IncrementalTrackingSolver, UnsatCoreSolver,
             return val
 
     def get_model(self):
+        if self.res_type != self._msat_lib.MSAT_SAT:
+            raise ModelUnsatError("msat returns unsat and the model does not exist")
         return MathSAT5Model(self.environment, self.msat_env)
 
     def _exit(self):

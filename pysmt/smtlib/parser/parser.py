@@ -539,6 +539,12 @@ class SmtLibParser(object):
         self.logic = None
         mgr = self.env.formula_manager
         self.cache.update({'false':mgr.FALSE(), 'true':mgr.TRUE()})
+
+    def _not(self, *args):
+        """Utility function that builds a Not"""
+        mgr = self.env.formula_manager
+        print(args[0])
+        return mgr.Not(args[0])
         
     def _division(self, *args):
         """Utility function that builds a division"""

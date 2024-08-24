@@ -65,6 +65,9 @@ class CVC5Options(SolverOptions):
         # https://github.com/cvc5/cvc5/issues/5323
         self._set_option(solver.cvc5solver,
                          "fmf-fun", "true")
+        # https://github.com/cvc5/cvc5/issues/10549
+        self._set_option(solver.cvc5solver, 
+                         "nl-cov-force", "true")
         self._set_option(solver.cvc5solver,
                          "produce-models", str(self.generate_models).lower())
         self._set_option(solver.cvc5solver,
@@ -91,26 +94,35 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
                            'NRA', 'QF_ABV', 'QF_AUFBV', 'QF_AUFLIA', 'QF_ALIA', 'QF_AX',
                            'QF_BV', 'BV', 'UFBV', 'QF_IDL', 'QF_LIA', 'QF_LRA', 'QF_NIA',
                            'QF_NRA', 'QF_RDL', 'QF_UF', 'UF', 'QF_UFBV', 'QF_UFIDL', 
-                           'QF_UFLIA', 'QF_UFLRA', 'QF_UFNRA', 'QF_UFNIA', 'UFLRA', 'UFNIA']
+                           'QF_UFLIA', 'QF_UFLRA', 'QF_UFNRA', 'QF_UFNIA', 'UFLRA', 'UFNIA',
+                           'ALL']
 
     def __init__(self, environment, logic, **options):
         Solver.__init__(self,
                         environment=environment,
                         logic=logic,
                         **options)
-
+                
         self.logic_name = str(logic)
-        if "t" in self.logic_name:
+
+        if self.logic_name.endswith("t"):
             # Custom Type extension
-            self.logic_name = self.logic_name.replace("t","")
+            self.logic_name = self.logic_name[:-1]
         if self.logic_name == "QF_BOOL":
             self.logic_name = "QF_LRA"
         elif self.logic_name == "BOOL":
             self.logic_name = "LRA"
+        elif self.logic_name == "QF_NIRA":
+            self.logic_name = "QF_NRA"
+        elif self.logic_name == "Auto":
+            self.logic_name = "ALL"
         if str(self.logic_name) in CVC5Solver.SOLVERFOR_LOGIC_NAMES:
-            self.cvc5solver = cvc5.SolverFor(str(self.logic_name))
+            self.cvc5solver = cvc5.Solver()
+            # self.cvc5solver.setLogic(self.logic_name)
+            self.cvc5solver.setLogic("NRA")
         else:
             self.cvc5solver = cvc5.Solver()
+
         self.options(self)
         self.declarations = set()
         self.mgr = environment.formula_manager
@@ -119,7 +131,7 @@ class CVC5Solver(Solver, SmtLibBasicSolver, SmtLibIgnoreMixin):
         self.converter = CVC5Converter(environment, self.cvc5solver)
 
         return
-
+    
     def reset_assertions(self):
         self.cvc5solver.resetAssertions()
         self.options(self)

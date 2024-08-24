@@ -665,7 +665,15 @@ QF_AUFBVLIRA = Logic(name="QF_AUFBVLIRA",
 
 
 AUTO = Logic(name="Auto",
-             description="Special logic used to indicate that the logic to be used depends on the formula.")
+             description="Special logic used to indicate that the logic to be used depends on the formula.",
+             linear=True,
+             uninterpreted=True,
+             quantifier_free=False,
+             arrays=True,
+             bit_vectors=True,
+             integer_arithmetic=True,
+             real_arithmetic=True
+             )
 
 SMTLIB2_LOGICS = frozenset([AUFLIA,
                             AUFLIRA,
@@ -717,7 +725,9 @@ PYSMT_LOGICS = frozenset([QF_BOOL, QF_IDL, QF_LIA, QF_LRA, QF_RDL, QF_UF, QF_UFI
                           QF_BV, QF_UFBV,
                           QF_ABV, QF_AUFBV, QF_AUFLIA, QF_ALIA, QF_AX,
                           QF_AUFBVLIRA,
-                          QF_NRA, QF_NRAT, QF_NIA, QF_NIRA, UFBV, BV,
+                          QF_NRA, QF_NRAT, QF_NIA, QF_NIRA, UFBV, BV, 
+                          QF_NRA, NRA, 
+                          AUTO
                           ])
 
 # PySMT Logics includes additional features:
