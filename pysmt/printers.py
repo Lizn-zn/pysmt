@@ -825,6 +825,11 @@ class MathematicaPrinter(TreeWalker):
         self.write("sqrt((")
         yield formula.arg(0)
         self.write(")^2)")
+        
+    def walk_sqrt(self, formula):
+        self.write("(")
+        yield formula.arg(0)
+        self.write(")^(1/2)")
 
     def walk_toreal(self, formula):
         # self.write("ToReal(")
@@ -853,7 +858,6 @@ class MathematicaPrinter(TreeWalker):
     def walk_complex_equals(self, formula): return self.walk_nary(formula, " == ")
     def walk_le(self, formula): return self.walk_nary(formula, " <= ")
     def walk_lt(self, formula): return self.walk_nary(formula, " < ")
-    def walk_sqrt(self, formula): return self.walk_single_input_operator(formula, 'sqrt')
     def walk_pi(self, formula): self.write("pi")
     def walk_e(self, formula): self.write("e")
 
