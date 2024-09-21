@@ -430,7 +430,7 @@ class HRPrinter(TreeWalker):
     def walk_gcd(self, formula): return self.walk_multi_input_operator(formula, "gcd")
     def walk_lcm(self, formula): return self.walk_multi_input_operator(formula, "lcm")
     def walk_binomial(self, formula): return self.walk_multi_input_operator(formula, "binomial")
-    def walk_not(self, formula): return self.walk_single_input_operator(formula, "!")
+    def walk_not(self, formula): return self.walk_single_input_operator(formula, "Not")
     def walk_pi(self, formula): self.write("pi")
     def walk_e(self, formula): self.write("e")
     walk_bv_and = walk_and
@@ -714,7 +714,7 @@ class MathematicaPrinter(TreeWalker):
         self.write(")")
             
     def walk_not(self, formula):
-        self.write("&not(")
+        self.write("!(")
         yield formula.arg(0)
         self.write(")")
 
