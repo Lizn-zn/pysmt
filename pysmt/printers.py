@@ -430,7 +430,7 @@ class HRPrinter(TreeWalker):
     def walk_gcd(self, formula): return self.walk_multi_input_operator(formula, "gcd")
     def walk_lcm(self, formula): return self.walk_multi_input_operator(formula, "lcm")
     def walk_binomial(self, formula): return self.walk_multi_input_operator(formula, "binomial")
-    def walk_not(self, formula): return self.walk_single_input_operator(formula, "Not")
+    def walk_not(self, formula): return self.walk_single_input_operator(formula, "!")
     def walk_pi(self, formula): self.write("pi")
     def walk_e(self, formula): self.write("e")
     walk_bv_and = walk_and
@@ -650,6 +650,214 @@ class MaplePrinter(TreeWalker):
     def walk_e(self, formula): self.write("e")
 
 #EOC MaplePrinter
+
+class MathematicaPrinter(TreeWalker):
+    """Performs serialization of a formula in maple style.
+
+    E.g., Implies(And(Symbol(x), Symbol(y)), Symbol(z))  ~>   '(x * y) -> z'
+    """
+
+    def __init__(self, stream, env=None):
+        TreeWalker.__init__(self, env=env)
+        self.stream = stream
+        self.write = self.stream.write
+
+    def printer(self, f, threshold=None):
+        """Performs the serialization of 'f'.
+
+        Thresholding can be used to define how deep in the formula to
+        go. After reaching the thresholded value, "..." will be
+        printed instead. This is mainly used for debugging.
+        """
+        self.walk(f, threshold=threshold)
+
+    def walk_threshold(self, formula):
+        self.write("...")
+
+    def walk_nary(self, formula, ops):
+        self.write("(")
+        args = formula.args()
+        for s in args[:-1]:
+            yield s
+            self.write(ops)
+        s = args[-1]
+        yield s
+        self.write(")")
+    
+    def walk_term(self, formula, ops):
+        """ Note: add bracket for fraction """
+        self.write("(")
+        args = formula.args()
+        for s in args[:-1]:
+            if s.is_constant() and \
+                is_pysmt_fraction(s.constant_value()) and \
+                    s.constant_value().denominator != 1:
+                self.write("(")
+                yield s
+                self.write(")")
+            else:
+                yield s
+            self.write(ops)
+        s = args[-1]
+        if s.is_constant() and \
+            is_pysmt_fraction(s.constant_value()) and \
+                s.constant_value().denominator != 1:
+            self.write("(")
+            yield s
+            self.write(")")
+        elif s.is_constant() and s.constant_value() < 0:
+            self.write("(")
+            yield s
+            self.write(")")
+        else:
+            yield s
+        self.write(")")
+            
+    def walk_not(self, formula):
+        self.write("&not(")
+        yield formula.arg(0)
+        self.write(")")
+
+    def walk_symbol(self, formula):
+        self.write(quote(formula.symbol_name(), style="'"))
+        
+    def walk_single_input_operator(self, formula, op_name):
+        """ walk single input operator with single argument """
+        self.write(op_name)
+        self.write("(")
+        yield formula.arg(0)
+        self.write(")")
+    
+    def walk_multi_input_operator(self, formula, op_name):
+        """ walk multi input operator with multiple arguments """
+        self.write(op_name)
+        self.write("(")
+        for p in formula.args()[:-1]:
+            yield p
+            self.write(", ")
+        yield formula.args()[-1]
+        self.write(")")
+
+    def walk_function(self, formula):
+        """ walk function with multiple arguments """
+        yield formula.function_name()
+        self.write("(")
+        for p in formula.args()[:-1]:
+            yield p
+            self.write(", ")
+        yield formula.args()[-1]
+        self.write(")")
+
+    def walk_quantifier(self, op_symbol, var_sep, sep, formula):
+        if len(formula.quantifier_vars()) > 0:
+            self.write(op_symbol)
+            self.write("([")
+            for s in formula.quantifier_vars()[:-1]:
+                yield s
+                self.write(var_sep)
+            yield formula.quantifier_vars()[-1]
+            self.write("])")
+            self.write(sep)
+            yield formula.arg(0)
+        else:
+            yield formula.arg(0)
+
+    def walk_forall(self, formula):
+        return self.walk_quantifier("`&A`", ", ", " , ", formula)
+
+    def walk_exists(self, formula):
+        return self.walk_quantifier("`&E`", ", ", " , ", formula)
+
+    def real_to_str(self, number):
+        n, d = number.numerator, number.denominator
+        if d == 1:
+            return "%s" % n
+        else:
+            return "%s/%s" % (n, d)
+
+    def walk_real_constant(self, formula):
+        assert is_pysmt_fraction(formula.constant_value()), \
+            "The type was " + str(type(formula.constant_value()))
+        # TODO: Remove this once issue 113 in gmpy2 is solved            
+        v = formula.constant_value()
+        if v < 0: # add this for -1 => (-1)
+            self.write(f"({self.real_to_str(v)})")
+        else:
+            self.write(self.real_to_str(v))
+
+    def walk_int_constant(self, formula):
+        assert is_pysmt_integer(formula.constant_value()), \
+            "The type was " + str(type(formula.constant_value()))
+        self.write(str(formula.constant_value()))
+        
+    def walk_complex_constant(self, formula):
+        real, image = formula.constant_value()
+        real = real.constant_value()
+        real_str = self.real_to_str(real)
+        image = image.constant_value()
+        if image == 0:
+            self.write(real_str)
+        elif image < 0:        
+            image = -image
+            image_str = self.real_to_str(image)
+            self.write("(%s - %s*i)" %(real_str, image_str))
+        else:
+            image_str = self.real_to_str(image)
+            self.write("(%s + %s*i)" %(real_str, image_str))
+
+    def walk_complex_variable(self, formula):
+        self.write("(")
+        yield formula.arg(0)
+        self.write(" + ")
+        yield formula.arg(1)
+        self.write("*i)")
+
+    def walk_bool_constant(self, formula):
+        if formula.constant_value():
+            self.write("True")
+        else:
+            self.write("False")
+
+    def walk_algebraic_constant(self, formula):
+        self.write(str(formula.constant_value()))
+
+    def walk_abs(self, formula):
+        self.write("sqrt((")
+        yield formula.arg(0)
+        self.write(")^2)")
+
+    def walk_toreal(self, formula):
+        # self.write("ToReal(")
+        yield formula.arg(0)
+        # self.write(")")
+
+    def walk_realtoint(self, formula):
+        # self.write("RealToInt(")
+        yield formula.arg(0)
+        # self.write(")")
+
+    def walk_and(self, formula): return self.walk_nary(formula, " &and ")
+    def walk_or(self, formula): return self.walk_nary(formula, " &or ")
+    def walk_iff(self, formula): return self.walk_nary(formula, " &iff ")
+    def walk_implies(self, formula): return self.walk_nary(formula, " &implies ")
+    def walk_plus(self, formula): return self.walk_nary(formula, " + ")
+    def walk_minus(self, formula): return self.walk_nary(formula, " - ")
+    def walk_times(self, formula): return self.walk_nary(formula, " * ")
+    def walk_div(self, formula): return self.walk_nary(formula, " / ")
+    def walk_complex_plus(self, formula): return self.walk_nary(formula, " + ")
+    def walk_complex_minus(self, formula): return self.walk_nary(formula, " - ")
+    def walk_complex_times(self, formula): return self.walk_nary(formula, " * ")
+    def walk_complex_div(self, formula): return self.walk_nary(formula, " / ")
+    def walk_pow(self, formula): return self.walk_term(formula, " ^ ")
+    def walk_equals(self, formula): return self.walk_nary(formula, " == ")
+    def walk_complex_equals(self, formula): return self.walk_nary(formula, " == ")
+    def walk_le(self, formula): return self.walk_nary(formula, " <= ")
+    def walk_lt(self, formula): return self.walk_nary(formula, " < ")
+    def walk_sqrt(self, formula): return self.walk_single_input_operator(formula, 'sqrt')
+    def walk_pi(self, formula): self.write("pi")
+    def walk_e(self, formula): self.write("e")
+
+#EOC MathematicaPrinter
 
 class HRSerializer(object):
     """Return the serialized version of the formula as a string."""
