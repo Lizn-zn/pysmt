@@ -100,16 +100,10 @@ class SimpleTypeChecker(walkers.DagWalker):
         return self.walk_type_to_type(formula, args, COMPLEX, REAL)
 
     @walkers.handles(op.POW)
-    def walk_intonly_or_real(self, formula, args, **kwargs):
+    def walk_pow(self, formula, args, **kwargs):
         #pylint: disable=unused-argument
-        # we convert int^int to ToReal(int^int) even though 2^-1 is intrically real
-        for x in args:
-            if x != INT and x != REAL:
-                return None
-        rval = self.walk_type_to_type(formula, args, INT, INT)
-        if rval is None:
-            return REAL 
-        return rval
+        return REAL
+
 
     @walkers.handles(op.INTDIV, op.MOD, op.GCD, op.LCM, op.BINOMIAL, op.FACTORIAL)
     def walk_int_to_int(self, formula, args, **kwargs):

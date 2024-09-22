@@ -271,6 +271,8 @@ class FormulaManager(object):
             return self.Exp(exponent)
         elif exponent.is_constant(types.REAL, 1/2):
             return self.Sqrt(base)
+        elif exponent.is_constant() and exponent.constant_value() < 0.0:
+            return self.Div(self.Real(1.0), self.Pow(base, self.Real(-exponent.constant_value())))
         else:
             return self.create_node(node_type=op.POW, args=(base, exponent))
 
