@@ -271,7 +271,7 @@ class FormulaManager(object):
             return self.Exp(exponent)
         elif exponent.is_constant(types.REAL, 1/2):
             return self.Sqrt(base)
-        elif exponent.is_constant(types.REAL, -1):
+        elif exponent.is_constant(types.INT, -1):
             return self.Div(self.Real(1.0), base)
         elif exponent.is_constant() and exponent.constant_value() < 0.0:
             return self.Div(self.Real(1.0), self.Pow(base, self.Real(-exponent.constant_value())))
