@@ -845,8 +845,8 @@ class MathematicaPrinter(TreeWalker):
         yield formula.arg(0)
         # self.write(")")
 
-    def walk_and(self, formula): return self.walk_nary(formula, " &and ")
-    def walk_or(self, formula): return self.walk_nary(formula, " &or ")
+    def walk_and(self, formula): return self.walk_nary(formula, " && ")
+    def walk_or(self, formula): return self.walk_nary(formula, " || ")
     def walk_iff(self, formula): return self.walk_nary(formula, " &iff ")
     def walk_implies(self, formula): return self.walk_nary(formula, " &implies ")
     def walk_plus(self, formula): return self.walk_nary(formula, " + ")
