@@ -171,7 +171,7 @@ class SmtPrinter(TreeWalker):
         if d != 1:
             res = template % ( "(/ " + str(n) + " " + str(d) + ")" )
         else:
-            res = template % (str(n) + ".0")
+            res = template % (str(n))
 
         self.write(res)
 
@@ -567,7 +567,7 @@ class SmtDagPrinter(DagWalker):
         if d != 1:
             return template % ( "(/ " + str(n) + " " + str(d) + ")" )
         else:
-            return template % (str(n) + ".0")
+            return template % (str(n))
 
     @write_annotations_dag
     def walk_bv_constant(self, formula, **kwargs):

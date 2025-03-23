@@ -132,14 +132,14 @@ class HRPrinter(TreeWalker):
     def real_to_str(self, number):
         n, d = number.numerator, number.denominator
         if d == 1:
-            return "%s.0" % n
+            return "%s" % n
         else:
             return "%s/%s" % (n, d)
 
     def walk_real_constant(self, formula):
         assert is_pysmt_fraction(formula.constant_value()), \
             "The type was " + str(type(formula.constant_value()))
-        # TODO: Remove this once issue 113 in gmpy2 is solved            
+        # TODO: Remove this once issue 113 in gmpy2 is solved  
         v = formula.constant_value()
         if v < 0: # add this for -1 => (-1)
             self.write(f"({self.real_to_str(v)})")
